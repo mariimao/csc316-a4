@@ -1,0 +1,164 @@
+body {
+  font-family: sans-serif;
+  background: #f4f4f4;
+  text-align: center;
+}
+
+svg {
+  /* remove circular background/shadow so no big "petri dish" appears */
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 20px auto;
+  display: block;
+}
+
+.node {
+  stroke: white;
+  stroke-width: 1px;
+  cursor: pointer;
+}
+
+.tooltip {
+  position: absolute;
+  text-align: center;
+  padding: 5px 10px;
+  background: white;
+  border: 1px solid #ccc;
+  pointer-events: none;
+  font-size: 12px;
+  border-radius: 5px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+#filter-panel {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 240px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  text-align: left;
+  font-size: 13px;
+  z-index: 10;
+}
+
+#filter-panel h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.filter-row {
+  margin-bottom: 8px;
+}
+
+.range-row {
+  display: flex;
+  gap: 6px;
+}
+
+.range-row input[type="range"] {
+  flex: 1;
+  height: 28px;
+}
+
+.val-row {
+  font-size: 12px;
+  color: #333;
+  margin-top: 4px;
+}
+
+#filter-panel .controls {
+  text-align: right;
+  margin-top: 6px;
+}
+
+#reset-filters {
+  padding: 4px 8px;
+  font-size: 13px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background: #f7f7f7;
+  cursor: pointer;
+}
+
+#legend {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 160px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  font-size: 13px;
+  z-index: 11;
+}
+
+#legend-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-align: left;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.legend-item .swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0,0,0,0.08);
+  flex: 0 0 14px;
+}
+
+.legend-item .label {
+  flex: 1 1 auto;
+  text-align: left;
+  color: #333;
+  font-size: 12px;
+}
+
+#size-legend {
+  margin-top: 8px;
+  border-top: 1px solid #eee;
+  padding-top: 8px;
+}
+
+#size-legend-title {
+  font-size: 12px;
+  color: #444;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+/* container for each size row */
+.legend-size-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+/* circular swatch that will be sized inline via style attribute */
+.legend-size-item .sswatch {
+  display: inline-block;
+  border-radius: 50%;
+  background: #999;
+  border: 1px solid rgba(0,0,0,0.12);
+  flex: 0 0 auto;
+}
+
+/* label next to size swatch */
+.legend-size-item .label {
+  font-size: 12px;
+  color: #333;
+}
