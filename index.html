@@ -1,82 +1,33 @@
 <!doctype html>
 <html lang="en">
 <head>
-	<meta charset="utf-8">
-	<meta name="description" content="">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>CSC316 - Assignment 4</title>
+    <meta charset="utf-8" />
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>D3 Flower Animation</title>
 
-	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-	<link rel="stylesheet" href="css/style.css">
+    <!-- CSS libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+    <!-- Custom CSS Code -->
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<!-- filter panel (left/top) -->
-<div id="filter-panel" aria-label="Meal filters">
-  <h4>Find me a meal with...</h4>
-
-  <div class="filter-row">
-    <label>Sugar (g)</label>
-    <div class="range-row">
-      <input id="sugar" type="range">
+<div class="container-fluid">
+    <!-- flower plot -->
+    <div class="row justify-content-center" style="height: max(100vh, 800px)">
+        <div class="align-self-center" id="flower" style="height: 100%; width: 100%"></div>
     </div>
-    <div class="val-row">
-      Current: <span id="sugar-val"></span> —
-      Avg: <span id="sugar-mean"></span> —
-      Min: <span id="sugar-min-val"></span> —
-      Max: <span id="sugar-max-val"></span>
-    </div>
-  </div>
-
-  <div class="filter-row">
-    <label>Sodium (mg)</label>
-    <div class="range-row">
-      <input id="sodium" type="range">
-    </div>
-    <div class="val-row">
-      Current: <span id="sodium-val"></span> —
-      Avg: <span id="sodium-mean"></span> —
-      Min: <span id="sodium-min-val"></span> —
-      Max: <span id="sodium-max-val"></span>
-    </div>
-  </div>
-
-  <div class="filter-row">
-    <label>Cholesterol (mg)</label>
-    <div class="range-row">
-      <input id="chol" type="range">
-    </div>
-    <div class="val-row">
-      Current: <span id="chol-val"></span> —
-      Avg: <span id="chol-mean"></span> —
-      Min: <span id="chol-min-val"></span> —
-      Max: <span id="chol-max-val"></span>
-    </div>
-  </div>
-
-  <div class="controls">
-    <button id="reset-filters" type="button">Reset</button>
-  </div>
 </div>
 
-<!-- legend (top-right) -->
-<div id="legend" aria-hidden="false">
-  <div id="legend-title">Diet type</div>
-
-  <!-- NEW: container for color legend items (ensures colours appear above size legend) -->
-  <div id="color-legend-items"></div>
-
-  <!-- add size legend container -->
-  <div id="size-legend">
-    <div id="size-legend-title">Serving size (g)</div>
-    <!-- size items injected by JS -->
-  </div>
-</div>
-
-<svg id="petri-dish" width="800" height="800" role="img" aria-label="Petri dish visualization"></svg>
-
+<!-- d3 -->
 <script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="js/main.js"></script>
 
+<!-- Visualization objects -->
+<script src="js/flower.js"></script>
+
+<!-- Load data, create visualizations -->
+<script src="js/main.js"></script>
 </body>
 </html>
