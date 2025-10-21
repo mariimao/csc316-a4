@@ -1,7 +1,43 @@
 body {
     margin: 0;
-    background: #111;
+    background-color: #1b1f23;
     display: grid;
     place-items: center;
     height: 100vh;
+}
+
+.tooltip {
+    position: absolute;
+    background: #222;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.tooltip .h {
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing:.2px;
+    margin-bottom:.15rem;
+}
+
+.tooltip .kr {
+    display:flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap:.5rem;
+}
+
+.tooltip .k   {
+    color:#b7c0ff;
+    margin-right: 8px;
+    display: inline-block;
+}
+
+.petal {
+    mix-blend-mode: soft-light;
 }
