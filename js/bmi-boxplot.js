@@ -1,3 +1,7 @@
+/**
+ * BMI Box Plot Visualization
+ * Code is partially adapted from AI-generated content.
+ */
 class BMIBox {
     
     constructor(parentElement, data) {
@@ -78,6 +82,13 @@ class BMIBox {
     initInteractions() {
         let vis = this;
         
+        vis.overlay = vis.svg.insert("rect", ":first-child")
+            .attr("x", 0).attr("y", 0)
+            .attr("width", vis.width)
+            .attr("height", vis.height)
+            .style("fill", "transparent")
+            .style("pointer-events", "all");
+        
         vis.hoverLine = vis.svg.append("line")
             .attr("class", "hover-line")
             .attr("x1", 0).attr("x2", vis.width)
@@ -94,14 +105,6 @@ class BMIBox {
             .style("font-size", "12px")
             .style("fill", "gray")
             .style("opacity", 0);
-        
-        vis.overlay = vis.svg.append("rect")
-            .attr("class", "overlay")
-            .attr("x", 0).attr("y", 0)
-            .attr("width", vis.width)
-            .attr("height", vis.height)
-            .style("fill", "transparent")
-            .style("pointer-events", "all");
     }
     
     drawboxPlot() {
@@ -189,34 +192,61 @@ class BMIBox {
                 .attr("cx", center_x_of_box)
                 .attr("cy", d => vis.yScale(d))
                 .attr("r", 3)
-                .attr("fill", "gray");
+                .attr("fill", "gray")
+                .on("mouseover", function() {
+                    d3.select(this)
+                        .attr("r", 6)
+                        .attr("fill", "orange")
+                        .attr("stroke", "black")
+                        .attr("stroke-width", 1.5);
+                })
+                .on("mouseleave", function() {
+                    d3.select(this)
+                        .attr("r", 3)
+                        .attr("fill", "gray")
+                        .attr("stroke", "none");
+                });
         });
         
         // Add interaction
-        vis.overlay
-            .on("mouseover", function() {
-                vis.hoverLine.style("opacity", 1).raise();
-                vis.hoverLabel.style("opacity", 1).raise();
-                })
-            .on("mousemove", function() {
+        vis.svg
+            .on("mouseenter", () => {
+                vis.hoverLine.style("opacity", 1);
+                vis.hoverLabel.style("opacity", 1);
+                vis.hoverLine.raise();
+                vis.hoverLabel.raise();
+            })
+            .on("mousemove", (event) => {
                 const [, yRaw] = d3.pointer(event, vis.svg.node());
                 const y = Math.max(0, Math.min(vis.height, yRaw));
                 const bmi = vis.yScale.invert(y);
-                
-                vis.hoverLine
-                    .attr("y1", y)
-                    .attr("y2", y)
-                    .style("pointer-events", "none");
-                
-                vis.hoverLabel
-                    .attr("y", y)
-                    .text(`BMI: ${fmt(bmi)}`)
-                    .style("pointer-events", "none");
+                vis.hoverLine.attr("y1", y).attr("y2", y);
+                vis.hoverLabel.attr("y", y).text(`BMI: ${fmt(bmi)}`);
             })
-            .on("mouseleave", function() {
+            .on("mouseleave", () => {
                 vis.hoverLine.style("opacity", 0);
                 vis.hoverLabel.style("opacity", 0);
             });
+        
+        vis.overlay
+            .on("mouseenter", () => {
+                vis.hoverLine.style("opacity", 1);
+                vis.hoverLabel.style("opacity", 1);
+                vis.hoverLine.raise();
+                vis.hoverLabel.raise();
+            })
+            .on("mousemove", (event) => {
+                const [, yRaw] = d3.pointer(event, vis.svg.node());
+                const y = Math.max(0, Math.min(vis.height, yRaw));
+                const bmi = vis.yScale.invert(y);
+                vis.hoverLine.attr("y1", y).attr("y2", y);
+                vis.hoverLabel.attr("y", y).text(`BMI: ${fmt(bmi)}`);
+            })
+            .on("mouseleave", () => {
+                vis.hoverLine.style("opacity", 0);
+                vis.hoverLabel.style("opacity", 0);
+            });
+        
     }
     
     /*
