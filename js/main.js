@@ -1,5 +1,6 @@
 
 let flower;
+let bmiBox;
 
 loadData();
 
@@ -10,9 +11,9 @@ function loadData() {
         const prepared = prepareLifestyleData(data);
 
         console.log("Prepared", prepared);
-
-        flower = new Flower("flower", prepared);
-        flower.initVis();
+        
+        bmiBox = new BMIBox("bmi-boxplot", prepared);
+        bmiBox.initVis();
     })
 }
 
