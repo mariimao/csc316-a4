@@ -18,7 +18,7 @@ class FlowerData {
         );
         
         this.waterIntakeRange = d3.extent(data, d => d["Water_Intake (liters)"]);
-        this.caloriesIntake = d3.extent(data, d => d["Calories"]);
+        this.caloriesIntakeRange = d3.extent(data, d => d["Calories"]);
         this.caloriesBurnedRange = d3.extent(data, d => d["Calories_Burned"]);
         this.workoutFreqRange = [2, 5];
         this.bmiRange = d3.extent(data, d => d["BMI"]);

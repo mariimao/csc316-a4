@@ -12,7 +12,7 @@ class Flower {
     this.workoutType = workoutType;
     this.dietType = dietType;
 
-    this.petalLengthOption = "Calories"; // Options: "Calories", "Calories_Burned"
+    this.petalLengthOption = "Calories_Intake"; // Options: "Calories_Intake", "Calories_Burned"
 
     // Prepare colors for the flower petals
     this.colorPalette = d3.scaleOrdinal(d3.schemePastel1);
@@ -125,10 +125,10 @@ class Flower {
       let vis = this;
 
       // Update scales based on user selection
-      if (vis.petalLengthOption === "Calories") {
-          vis.petalLength.domain(vis.caloriesIntake);
+      if (vis.petalLengthOption === "Calories_Intake") {
+          vis.petalLength.domain(vis.data.caloriesIntakeRange);
       } else if (vis.petalLengthOption === "Calories_Burned") {
-          vis.petalLength.domain(vis.caloriesBurnedRange);
+          vis.petalLength.domain(vis.data.caloriesBurnedRange);
       }
       
       vis.drawFlowerPetals();
@@ -140,12 +140,26 @@ class Flower {
   Helper to draw the flower petals.
    */
   drawFlowerPetals() {
+    let vis = this;
+    
     console.log("Drawing petals");
-
-    const n = this.displayData.length;
-    const petalLen = (d) => (this.getOuterR(d) - this.centerR) * 0.9;
+      
+      let petalLenData = [];
+      if (this.petalLengthOption === "Calories_Intake") {
+          petalLenData = this.displayData.map(d => d.avgCaloriesIntake);
+      }
+      else if (this.petalLengthOption === "Calories_Burned") {
+          petalLenData = this.displayData.map(d => d.avgCaloriesBurned);
+      }
+      
+      
+      const n = this.displayData.length;
+    const petalLen = (i) => (petalLenData[i] - this.centerR) * 0.9;
     const petalWid = (d) => this.getPetalWidth(d);
-
+    
+    
+    
+    
     // Flower petals for every instance of this.displayData
     const petals = this.flower.selectAll("ellipse")
         .data(this.displayData)
@@ -153,26 +167,26 @@ class Flower {
         .attr("class", "petal")
         .attr("cx", (d, i) => {
             const theta = (i / n) * 2 * Math.PI; // angle for petal
-            const offset = this.centerR + this.degOfSpread * petalLen(d);
+            const offset = this.centerR + this.degOfSpread * petalLen(i);
             return Math.cos(theta) * offset;
         })
         .attr("cy", (d, i) => {
             const theta = (i / n) * 2 * Math.PI; // angle for petal
-            const offset = this.centerR + this.degOfSpread * petalLen(d);
+            const offset = this.centerR + this.degOfSpread * petalLen(i);
             return Math.sin(theta) * offset;
         })
-        .attr("rx", d => petalWid(d))
-        .attr("ry", d => petalLen(d))
+        .attr("rx", d => petalWid(d.avgDietFreq))
+        .attr("ry", (d, i) => petalLen(i))
         .attr("transform", (d, i) => {
             const theta = (i / n) * 360; // angle for petal in degrees
-            const offset = this.centerR + this.degOfSpread * petalLen(d);
+            const offset = this.centerR + this.degOfSpread * petalLen(i);
             const cx = Math.cos((i / n) * 2 * Math.PI) * offset;
             const cy = Math.sin((i / n) * 2 * Math.PI) * offset;
             return `rotate(${theta - 90}, ${cx}, ${cy})`;
         })
-        .attr("fill", d => this.colorPalette(d["diet_type"]))
-        .attr("fill-opacity", d => this.shading(d["Water_Intake (liters)"]))
-        .attr("stroke", d => this.getBorderColor(d["diet_type"]))
+        .attr("fill", vis.colorPalette(vis.dietType))
+        .attr("fill-opacity", d => this.shading(d.avgWater))
+        .attr("stroke", vis.getBorderColor(vis.dietType))
         .attr("stroke-width", 1)
         .style("cursor", "pointer")
         .on("mouseenter", (e, d) => {
@@ -185,11 +199,11 @@ class Flower {
           // Configure tooltip content and position
           const html =
               `<div class="h">${d.diet_type ?? "Diet type"}</div>
-       <div class="kr"><span class="k">Daily calories intake:</span> ${this.fmtInt(d["Calories"])}</div>
-       <div class="kr"><span class="k">Calories burned:</span> ${this.fmtInt(d["Calories_Burned"])}</div>
-       <div class="kr"><span class="k">Meals/day:</span> ${this.fmt1(d["Daily meals frequency"])}</div>
-       <div class="kr"><span class="k">Water intake:</span> ${this.fmt1(d["Water_Intake (liters)"])} L</div>
-       <div class="kr"><span class="k">Workout freq:</span> ${this.fmt1(d["Workout_Frequency (days/week)"])} d/wk</div>`;
+       <div class="kr"><span class="k">Daily calories intake:</span> ${this.fmtInt(d.avgCaloriesIntake)}</div>
+       <div class="kr"><span class="k">Calories burned:</span> ${this.fmtInt(d.avgCaloriesBurned)}</div>
+       <div class="kr"><span class="k">Meals/day:</span> ${this.fmt1(d.avgDietFreq)}</div>
+       <div class="kr"><span class="k">Water intake:</span> ${this.fmt1(d.avgWater)} L</div>
+       <div class="kr"><span class="k">Workout freq:</span> ${this.fmt1(d.avgWorkoutFreq)} d/wk</div>`;
 
           this.tooltip.html(html).style("opacity", 1);
         })
@@ -201,12 +215,12 @@ class Flower {
         .on("mouseleave", (event) => {
           d3.select(event.currentTarget)
               .attr("stroke-width", 1)
-              .attr("fill-opacity", d => this.shading(d["Water_Intake (liters)"]));
+              .attr("fill-opacity", d => this.shading(d.avgWater));
           this.tooltip.style("opacity", 0);
         })
         .append("title")
-        .text(d => `Diet: ${d.diet_type}
-Calories: ${this.fmtInt(d["Calories_Burned"])}`);
+        .text(d => `Diet: ${vis.dietType}
+Calories: ${this.fmtInt(d.avgCaloriesBurned)}`);
   }
 
   // Helper function to draw the center of the flower
@@ -307,13 +321,19 @@ Calories: ${this.fmtInt(d["Calories_Burned"])}`);
   }
 
   // Helper to get outer radius of petal based on length
-  getOuterR(d) {
-    return this.petalLength(d["Calories"]);
-  }
+  // getOuterR(d) {
+  //     let vis = this;
+  //     if (vis.petalLengthOption === "Calories_Intake") {
+  //         return vis.petalLength(d.avgCaloriesIntake);
+  //     }
+  //     else if (vis.petalLengthOption === "Calories_Burned") {
+  //         return vis.petalLength(d.avgCaloriesBurned);
+  //     }
+  // }
 
   // Helper to get petal width
   getPetalWidth(d) {
-    return this.petalWidth(d["Daily meals frequency"]);
+    return this.petalWidth(d.avgDietFreq);
   }
 }
 
