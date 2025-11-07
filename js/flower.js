@@ -97,15 +97,6 @@ class Flower {
         .domain(vis.data.waterIntakeRange)
         .range([0.3, 1]);
 
-    vis.numLines = d => d;
-
-    // Initialize flower layout
-
-    // TODO: might require change
-
-    // Draw plate
-    // vis.drawPlate();
-
     vis.flower = vis.svg.append("g")
         .attr("transform", `translate(${vis.width/2},${vis.height/2})`);
 
@@ -144,42 +135,35 @@ class Flower {
     
     console.log("Drawing petals");
       
-      let petalLenData = [];
-      if (this.petalLengthOption === "Calories_Intake") {
-          petalLenData = this.displayData.map(d => d.avgCaloriesIntake);
-      }
-      else if (this.petalLengthOption === "Calories_Burned") {
-          petalLenData = this.displayData.map(d => d.avgCaloriesBurned);
-      }
-      
       
       const n = this.displayData.length;
-    const petalLen = (i) => (petalLenData[i] - this.centerR) * 0.9;
-    const petalWid = (d) => this.getPetalWidth(d);
+    const petalLen = (d) => (vis.getOuterR(d) - this.centerR) * 0.9;
+    const petalWid = (d) => vis.getPetalWidth(d);
     
     
     
     
     // Flower petals for every instance of this.displayData
-    const petals = this.flower.selectAll("ellipse")
-        .data(this.displayData)
+    const petals = vis.flower.selectAll("ellipse")
+        .data(vis.displayData)
         .join("ellipse")
         .attr("class", "petal")
         .attr("cx", (d, i) => {
-            const theta = (i / n) * 2 * Math.PI; // angle for petal
-            const offset = this.centerR + this.degOfSpread * petalLen(i);
+            let theta = (i / n) * 2 * Math.PI; // angle for petal
+            theta += (Math.random() - 0.5) * (Math.PI / n); // add slight random deviations
+            const offset = this.centerR + this.degOfSpread * petalLen(d);
             return Math.cos(theta) * offset;
         })
         .attr("cy", (d, i) => {
             const theta = (i / n) * 2 * Math.PI; // angle for petal
-            const offset = this.centerR + this.degOfSpread * petalLen(i);
+            const offset = this.centerR + this.degOfSpread * petalLen(d);
             return Math.sin(theta) * offset;
         })
         .attr("rx", d => petalWid(d.avgDietFreq))
-        .attr("ry", (d, i) => petalLen(i))
+        .attr("ry", (d) => petalLen(d))
         .attr("transform", (d, i) => {
             const theta = (i / n) * 360; // angle for petal in degrees
-            const offset = this.centerR + this.degOfSpread * petalLen(i);
+            const offset = this.centerR + this.degOfSpread * petalLen(d);
             const cx = Math.cos((i / n) * 2 * Math.PI) * offset;
             const cy = Math.sin((i / n) * 2 * Math.PI) * offset;
             return `rotate(${theta - 90}, ${cx}, ${cy})`;
@@ -321,15 +305,15 @@ Calories: ${this.fmtInt(d.avgCaloriesBurned)}`);
   }
 
   // Helper to get outer radius of petal based on length
-  // getOuterR(d) {
-  //     let vis = this;
-  //     if (vis.petalLengthOption === "Calories_Intake") {
-  //         return vis.petalLength(d.avgCaloriesIntake);
-  //     }
-  //     else if (vis.petalLengthOption === "Calories_Burned") {
-  //         return vis.petalLength(d.avgCaloriesBurned);
-  //     }
-  // }
+  getOuterR(d) {
+      let vis = this;
+      if (vis.petalLengthOption === "Calories_Intake") {
+          return vis.petalLength(d.avgCaloriesIntake);
+      }
+      else {
+          return vis.petalLength(d.avgCaloriesBurned);
+      }
+  }
 
   // Helper to get petal width
   getPetalWidth(d) {
