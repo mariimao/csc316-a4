@@ -17,13 +17,6 @@ class FlowerData {
             d => Math.round(d["Age"] / 10) * 10
         );
         
-        this.waterIntakeRange = d3.extent(data, d => d["Water_Intake (liters)"]);
-        this.caloriesIntakeRange = d3.extent(data, d => d["Calories"]);
-        this.caloriesBurnedRange = d3.extent(data, d => d["Calories_Burned"]);
-        this.workoutFreqRange = [2, 5];
-        this.bmiRange = d3.extent(data, d => d["BMI"]);
-        this.dietFreqRange = d3.extent(data, d => d["Daily meals frequency"]);
-        
         this.dietTypes = Array.from(new Set(data.map(d => d["diet_type"])))
     }
 }

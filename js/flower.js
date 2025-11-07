@@ -19,10 +19,11 @@ class Flower {
     this.colorPalette.domain(data.dietTypes);
     
     this.centerR = 10;
-    this.maxOuterR = 200;
-    this.minOuterR = 100;
+    this.maxOuterR = 120;
+    this.minOuterR = 70;
     this.degOfSpread = 0.9; // 1: petals fully spread outwards; 0: rear of petal at center
-    this.petalDisplayWidthRange = [10, 80]; // min and max petal width in pixels
+    this.petalDisplayWidthRange = [18, 32]; // min and max petal width in pixels
+      this.opacityDisplayRange = [0.55, 0.9]; // min and max petal shading (opacity)
 
     // Set format
     this.fmtInt = d3.format(",");
@@ -88,15 +89,13 @@ class Flower {
 
     // Scales and axes
     vis.petalWidth = d3.scaleLinear()
-        .domain(vis.data.dietFreqRange)
         .range(vis.petalDisplayWidthRange);
 
     vis.petalLength = d3.scaleLinear()
         .range([vis.minOuterR, vis.maxOuterR]);
 
     vis.shading = d3.scaleLinear()
-        .domain(vis.data.waterIntakeRange)
-        .range([0.3, 1]);
+        .range(vis.opacityDisplayRange);
 
     vis.flower = vis.svg.append("g")
         .attr("transform", `translate(${vis.width/2},${vis.height/2})`);
@@ -117,16 +116,31 @@ class Flower {
       let vis = this;
 
       // Update scales based on user selection
+      // 1. Petal length scale
+      let vals;
       if (vis.petalLengthOption === "Calories_Intake") {
-          vis.petalLength.domain(vis.data.caloriesIntakeRange);
+          vals = vis.displayData.map(d => d.avgCaloriesIntake);
       } else if (vis.petalLengthOption === "Calories_Burned") {
-          vis.petalLength.domain(vis.data.caloriesBurnedRange);
+          vals = vis.displayData.map(d => d.avgCaloriesBurned);
       }
+      let low = d3.quantile(vals, 0.15);
+      let high = d3.quantile(vals, 0.85);
+      vis.petalLength.domain([low, high]).clamp(true);
+      
+      // 2. Petal width scale
+      vals = vis.displayData.map(d => d.avgDietFreq);
+      low = d3.quantile(vals, 0.15);
+      high = d3.quantile(vals, 0.85);
+      vis.petalWidth.domain([low, high]).clamp(true);
+      
+      // 3. Shading scale
+      vals = vis.displayData.map(d => d.avgWater);
+      low = d3.quantile(vals, 0.15);
+      high = d3.quantile(vals, 0.85);
+      vis.shading.domain([low, high]).clamp(true);
       
       vis.drawFlowerPetals();
   }
-
-  // TODO: remove all this.xxx
 
   /*
   Helper to draw the flower petals.
@@ -175,19 +189,19 @@ class Flower {
         .style("cursor", "pointer")
         .on("mouseenter", (e, d) => {
           // Highlight the selected petal
-          d3.select(event.currentTarget)
+          d3.select(e.currentTarget)
               .attr("stroke-width", 2.5)
               .attr("fill-opacity", 1)
               .raise();
 
           // Configure tooltip content and position
           const html =
-              `<div class="h">${d.diet_type ?? "Diet type"}</div>
-       <div class="kr"><span class="k">Daily calories intake:</span> ${this.fmtInt(d.avgCaloriesIntake)}</div>
-       <div class="kr"><span class="k">Calories burned:</span> ${this.fmtInt(d.avgCaloriesBurned)}</div>
-       <div class="kr"><span class="k">Meals/day:</span> ${this.fmt1(d.avgDietFreq)}</div>
-       <div class="kr"><span class="k">Water intake:</span> ${this.fmt1(d.avgWater)} L</div>
-       <div class="kr"><span class="k">Workout freq:</span> ${this.fmt1(d.avgWorkoutFreq)} d/wk</div>`;
+              `<div class="h">${d.diet_type ?? "Diet type"}, Age group: ${d.AgeGroup}-${d.AgeGroup + 9}</div>
+       <div class="kr"><span class="k">Avg Daily calories intake:</span> ${vis.fmtInt(d.avgCaloriesIntake)}</div>
+       <div class="kr"><span class="k">AvgCalories burned:</span> ${vis.fmtInt(d.avgCaloriesBurned)}</div>
+       <div class="kr"><span class="k">Avg Meals/day:</span> ${vis.fmt1(d.avgDietFreq)}</div>
+       <div class="kr"><span class="k">Avg Water intake:</span> ${vis.fmt1(d.avgWater)} L</div>
+       <div class="kr"><span class="k">Avg Workout freq:</span> ${vis.fmt1(d.avgWorkoutFreq)} d/wk</div>`;
 
           this.tooltip.html(html).style("opacity", 1);
         })
