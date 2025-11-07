@@ -11,7 +11,8 @@ function loadData() {
 
         console.log("Prepared", prepared);
 
-        flower = new Flower("flower", prepared);
+        flower_data = new FlowerData(prepared);
+        flower = new Flower("flower", flower_data);
         flower.initVis();
     })
 }
