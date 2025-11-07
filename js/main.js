@@ -11,6 +11,9 @@ function loadData() {
 
         console.log("Prepared", prepared);
 
+        // To plot a flower, create a FlowerData instance which needs the above data
+        // Then pass the FlowerData instance to the Flower visualization
+        // Optional: pass in Workout_Type (string) and diet_type (string)
         flower_data = new FlowerData(prepared);
         flower = new Flower("flower", flower_data);
         flower.initVis();
