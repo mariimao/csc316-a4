@@ -22,6 +22,7 @@ class Flower {
     this.maxOuterR = 200;
     this.minOuterR = 100;
     this.degOfSpread = 0.9; // 1: petals fully spread outwards; 0: rear of petal at center
+    this.petalDisplayWidthRange = [10, 80]; // min and max petal width in pixels
 
     // Set format
     this.fmtInt = d3.format(",");
@@ -88,7 +89,7 @@ class Flower {
     // Scales and axes
     vis.petalWidth = d3.scaleLinear()
         .domain(vis.data.dietFreqRange)
-        .range([10, 28]);
+        .range(vis.petalDisplayWidthRange);
 
     vis.petalLength = d3.scaleLinear()
         .range([vis.minOuterR, vis.maxOuterR]);
@@ -149,8 +150,7 @@ class Flower {
         .join("ellipse")
         .attr("class", "petal")
         .attr("cx", (d, i) => {
-            let theta = (i / n) * 2 * Math.PI; // angle for petal
-            theta += (Math.random() - 0.5) * (Math.PI / n); // add slight random deviations
+            const theta = (i / n) * 2 * Math.PI; // angle for petal
             const offset = this.centerR + this.degOfSpread * petalLen(d);
             return Math.cos(theta) * offset;
         })
@@ -159,7 +159,7 @@ class Flower {
             const offset = this.centerR + this.degOfSpread * petalLen(d);
             return Math.sin(theta) * offset;
         })
-        .attr("rx", d => petalWid(d.avgDietFreq))
+        .attr("rx", d => petalWid(d))
         .attr("ry", (d) => petalLen(d))
         .attr("transform", (d, i) => {
             const theta = (i / n) * 360; // angle for petal in degrees

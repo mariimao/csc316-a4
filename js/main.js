@@ -14,8 +14,10 @@ function loadData() {
         // To plot a flower, create a FlowerData instance which needs the above data
         // Then pass the FlowerData instance to the Flower visualization
         // Optional: pass in Workout_Type (string) and diet_type (string)
-        flower_data = new FlowerData(prepared);
-        flower = new Flower("flower", flower_data);
+        const workout_type = "HIIT";
+        const diet_type = "Vegan";
+        const flower_data = new FlowerData(prepared);
+        flower = new Flower("flower", flower_data, workout_type, diet_type);
         flower.initVis();
     })
 }
