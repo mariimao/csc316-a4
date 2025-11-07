@@ -101,6 +101,31 @@ body {
   gap: 8px;
 }
 
+/* Pill buttons for meal type selection */
+.pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pill {
+  appearance: none;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #222;
+}
+.pill:hover {
+  background: #f3f3f3;
+}
+.pill.active {
+  background: #2b8a3e;
+  color: #fff;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
 .control-label {
   font-size: 12px;
   color: #333;
@@ -121,4 +146,67 @@ body {
     top: 8px;
     padding: 8px;
   }
+}
+
+/* Legend panel placed in the bottom-right corner */
+.legend-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  width: 220px;
+  max-width: calc(40vw);
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  z-index: 1100;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  color: #111;
+}
+
+.legend-panel h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.legend-item .swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  flex: 0 0 14px;
+}
+.legend-item .label {
+  font-size: 12px;
+  color: #222;
+}
+
+.legend-size {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+.legend-size-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.legend-size-item .sswatch {
+  display: inline-block;
+  border-radius: 50%;
+  background: #999;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  flex: 0 0 auto;
+}
+.legend-size-item .label {
+  font-size: 12px;
+  color: #222;
 }

@@ -112,7 +112,36 @@
       .attr('y', 0)
       .attr('width', w)
       .attr('height', h)
-      .attr('fill', 'transparent');
+      .attr('fill', 'transparent')
+      .style('cursor', 'grab');
+
+    // initialize pan state on svgApi so it persists across redraws/resizes
+    svgApi.pan = svgApi.pan || { x: 0, y: 0 };
+
+    // create (or select) a pan-group that will contain the visualization content;
+    // we'll transform this group on drag which is much cheaper than updating viewBox repeatedly
+    let panGroup = svg.select('g.pan-group');
+    if (panGroup.empty()) {
+      panGroup = svg.append('g').attr('class', 'pan-group');
+    }
+    // apply existing pan to the group transform
+    panGroup.attr('transform', `translate(${svgApi.pan.x},${svgApi.pan.y})`);
+    // store reference for animation loop and other code paths
+    svgApi.panGroup = panGroup;
+
+    // enable panning by dragging the background rect (updates panGroup transform)
+    const bg = svg.select('rect.category');
+    bg.call(
+      d3.drag()
+        .on('start', () => bg.style('cursor', 'grabbing'))
+        .on('drag', (event) => {
+          // event.dx/dy are in screen pixels; move content with the drag
+          svgApi.pan.x += event.dx;
+          svgApi.pan.y += event.dy;
+          panGroup.attr('transform', `translate(${Math.round(svgApi.pan.x)},${Math.round(svgApi.pan.y)})`);
+        })
+        .on('end', () => bg.style('cursor', 'grab'))
+    );
 
     if (!data || data.length === 0) {
       // fallback label if no data
@@ -175,7 +204,8 @@
       tooltip = d3.select('body').append('div').attr('class', 'viz-tooltip').style('display', 'none');
     }
 
-    const group = svg
+    const panGroupSel = svgApi.panGroup || svg.select('g.pan-group');
+    const group = panGroupSel
       .selectAll('.category-group')
       .data(data)
       .join('g')
@@ -188,15 +218,15 @@
       const cy = positions[i].y;
       const r = rScale(d.count);
 
-      // Plate background: outer + inner circles to create plate look
+  // Plate background: outer + inner circles to create plate look
       const strokeW = Math.max(1, Math.min(6, Math.round(r / 24)));
       const plateOuterR = Math.round(r + strokeW + Math.max(12, r * 0.22));
       const plateInnerR = Math.round(r + Math.max(6, r * 0.08));
 
-      // outer plate ring
-      g.append('circle').attr('class', 'plate-outer').attr('cx', cx).attr('cy', cy).attr('r', plateOuterR);
-      // inner plate (slightly lighter)
-      g.append('circle').attr('class', 'plate-inner').attr('cx', cx).attr('cy', cy).attr('r', plateInnerR);
+  // outer plate ring
+  g.append('circle').attr('class', 'plate-outer').attr('cx', cx).attr('cy', cy).attr('r', plateOuterR);
+  // inner plate (slightly lighter)
+  g.append('circle').attr('class', 'plate-inner').attr('cx', cx).attr('cy', cy).attr('r', plateInnerR);
 
       // create a full-circle path (two half-arcs) so we can attach textPath (category stroke sits on plate)
       const pathD = `M ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy}`;
@@ -229,7 +259,7 @@
         .text(`${d.key}`)
         .style('fill', '#000');
 
-      // --- draw meal dots inside this category circle ---
+  // --- draw meal dots inside this category circle ---
       // collect ALL meals for this Workout_Type; we'll mark which ones match active filters
       const allMeals = raw.filter(row => row.Workout_Type === d.key);
       const filters = svgApi.filters || {};
@@ -289,8 +319,8 @@
         };
       });
 
-      // bind nodes to animated blob path elements
-      const blobs = svg
+      // bind nodes to animated blob path elements (inside pan-group)
+      const blobs = (svgApi.panGroup || svg)
         .selectAll(`.meal-blob-${i}`)
         .data(nodes, d => d.id)
         .join('path')
@@ -339,7 +369,7 @@
         });
 
         // update only this category's blobs (path 'd')
-        svg.selectAll(`.meal-blob-${i}`).attr('d', d => blobPath(d.x, d.y, d.r, 8, d._phase, d._freq, d._amp));
+        (svgApi.panGroup || svg).selectAll(`.meal-blob-${i}`).attr('d', d => blobPath(d.x, d.y, d.r, 8, d._phase, d._freq, d._amp));
       });
 
       // initialize the simulation with a small nudge so it settles visually
@@ -376,8 +406,8 @@
           d.fy = null;
         });
 
-  // apply drag to blobs of this category
-  svg.selectAll(`.meal-blob-${i}`).call(drag);
+  // apply drag to blobs of this category (inside pan-group)
+  (svgApi.panGroup || svg).selectAll(`.meal-blob-${i}`).call(drag);
     });
   }
 
@@ -397,6 +427,9 @@
   // attach data and raw rows to svgApi for redraws
   svgApi.data = top4;
   svgApi.raw = raw;
+
+  // populate legend after raw is available
+  renderLegend(svgApi);
 
   // initialize filters store
   svgApi.filters = {
@@ -421,7 +454,12 @@
     // Start a continuous animation loop to update blob shapes even when the force is idle
     (function animateBlobs() {
       try {
-        if (svgApi && svgApi.svg) {
+        if (svgApi && svgApi.panGroup) {
+          svgApi.panGroup.selectAll('.meal-blob').each(function (d) {
+            if (!d) return;
+            d3.select(this).attr('d', blobPath(d.x, d.y, d.r, 8, d._phase, d._freq, d._amp));
+          });
+        } else if (svgApi && svgApi.svg) {
           svgApi.svg.selectAll('.meal-blob').each(function (d) {
             if (!d) return;
             d3.select(this).attr('d', blobPath(d.x, d.y, d.r, 8, d._phase, d._freq, d._amp));
@@ -448,80 +486,202 @@
     const container = d3.select('#controls');
     if (container.empty()) return;
     container.html('');
+    // Title above the filtering options
+    container.append('h3').attr('class', 'controls-title').text('Find me a meal with...');
     const raw = svgApi.raw || [];
 
     // --- meal_type radio buttons ---
     const mealTypes = Array.from(new Set(raw.map(d => d.meal_type).filter(Boolean)));
     const mg = container.append('div').attr('class', 'control-group');
     mg.append('h3').text('Meal type');
-    const radios = mg.append('div');
-    // All option
-    const radioAll = radios.append('label').attr('class', 'control-row').style('margin-bottom', '6px');
-    radioAll.append('input').attr('type', 'radio').attr('name', 'meal_type').attr('value', 'All').property('checked', true)
-      .on('change', () => { svgApi.filters.meal_type = 'All'; debouncedRedraw(); });
-    radioAll.append('span').attr('class', 'control-label').text('All');
+    // pill-style buttons for meal_type selection
+    const pillRow = mg.append('div').attr('class', 'pill-group');
+
+    // helper to create a pill button
+    function makePill(key) {
+      const btn = pillRow.append('button')
+        .attr('type', 'button')
+        .attr('class', 'pill')
+        .text(key)
+        .on('click', function () {
+          // update active class
+          pillRow.selectAll('button.pill').classed('active', false);
+          d3.select(this).classed('active', true);
+          svgApi.filters.meal_type = key;
+          debouncedRedraw();
+        });
+      return btn;
+    }
+
+    // All button (default)
+    makePill('All').classed('active', true);
 
     mealTypes.forEach(mt => {
-      const r = radios.append('label').attr('class', 'control-row').style('margin-bottom', '6px');
-      r.append('input').attr('type', 'radio').attr('name', 'meal_type').attr('value', mt)
-        .on('change', function () { if (this.checked) { svgApi.filters.meal_type = mt; debouncedRedraw(); } });
-      r.append('span').attr('class', 'control-label').text(mt);
+      makePill(mt);
     });
 
     // --- numeric nutrient sliders ---
-    // pick likely nutrient columns by matching header names
-    const headers = raw.length ? Object.keys(raw[0]) : [];
-    const nutrientKeys = headers.filter(h => /calor|protein|fat|carb/i.test(h));
-    if (nutrientKeys.length > 0) {
-      const ng = container.append('div').attr('class', 'control-group');
-      ng.append('h3').text('Nutrient filters');
+    // // pick likely nutrient columns by matching header names
+    // const headers = raw.length ? Object.keys(raw[0]) : [];
+    // const detectedNutrients = headers.filter(h => /calor|protein|fat|carb|sugar|sodium|cholesterol/i.test(h));
 
-      nutrientKeys.forEach(field => {
-        const values = raw.map(r => Number(r[field])).filter(v => isFinite(v));
-        if (values.length === 0) return;
-        const minV = Math.min(...values);
-        const maxV = Math.max(...values);
+    // // Store a user-selectable set of nutrients to show (defaults to all detected)
+    // if (!svgApi.nutrientSelection) {
+    //   svgApi.nutrientSelection = {};
+    //   detectedNutrients.forEach(k => { svgApi.nutrientSelection[k] = true; });
+    // }
 
-        // store initial full-range in filters
-        svgApi.filters.nutrients[field] = { min: minV, max: maxV };
+    // // Container and chooser UI so users can remove some nutrients from the controls
+    // const chooser = container.append('div').attr('class', 'control-group');
+    // chooser.append('h3').text('Choose nutrients');
+    // const chooserRow = chooser.append('div').attr('class', 'control-row').style('display', 'flex').style('flex-wrap', 'wrap').style('gap', '8px');
 
-        const fg = ng.append('div').attr('class', 'control-group');
-        fg.append('div').attr('class', 'control-row').html(`<span class="control-label">${field}</span><span class="slider-value" id="${safeId(field)}-val">${Math.round(minV)}–${Math.round(maxV)}</span>`);
+    // detectedNutrients.forEach(field => {
+    //   const label = chooserRow.append('label').attr('class', 'control-row').style('align-items', 'center').style('gap', '6px');
+    //   label.append('input')
+    //     .attr('type', 'checkbox')
+    //     .property('checked', !!svgApi.nutrientSelection[field])
+    //     .on('change', function () {
+    //       svgApi.nutrientSelection[field] = this.checked;
+    //       // re-render sliders when selection changes
+    //       renderNutrientSliders();
+    //     });
+    //   label.append('span').attr('class', 'control-label').text(field).style('font-size', '12px');
+    // });
 
-        const row = fg.append('div').attr('class', 'control-row').style('flex-direction', 'column').style('gap', '6px');
+    // // container where sliders are rendered; renderNutrientSliders will populate it
+    // const slidersWrapper = container.append('div').attr('id', 'nutrient-sliders');
 
-        // min slider
-        row.append('input')
-          .attr('type', 'range')
-          .attr('min', minV)
-          .attr('max', maxV)
-          .attr('value', minV)
-          .attr('step', Math.max(1, (maxV - minV) / 100))
-          .on('input', function () {
-            const v = Number(this.value);
-            svgApi.filters.nutrients[field].min = v;
-            d3.select(`#${safeId(field)}-val`).text(Math.round(svgApi.filters.nutrients[field].min) + '–' + Math.round(svgApi.filters.nutrients[field].max));
-            debouncedRedraw();
-          });
+    // // render sliders for currently selected nutrients
+    // function renderNutrientSliders() {
+    //   slidersWrapper.html('');
+    //   const nutrientKeys = detectedNutrients.filter(k => svgApi.nutrientSelection[k]);
+    //   if (nutrientKeys.length === 0) return;
+    //   const ng = slidersWrapper.append('div').attr('class', 'control-group');
+    //   ng.append('h3').text('Nutrient filters');
 
-        // max slider
-        row.append('input')
-          .attr('type', 'range')
-          .attr('min', minV)
-          .attr('max', maxV)
-          .attr('value', maxV)
-          .attr('step', Math.max(1, (maxV - minV) / 100))
-          .on('input', function () {
-            const v = Number(this.value);
-            svgApi.filters.nutrients[field].max = v;
-            d3.select(`#${safeId(field)}-val`).text(Math.round(svgApi.filters.nutrients[field].min) + '–' + Math.round(svgApi.filters.nutrients[field].max));
-            debouncedRedraw();
-          });
-      });
-    }
+    //   nutrientKeys.forEach(field => {
+    //     const values = raw.map(r => Number(r[field])).filter(v => isFinite(v));
+    //     if (values.length === 0) return;
+    //     const minV = Math.min(...values);
+    //     const maxV = Math.max(...values);
+
+    //     // store initial full-range in filters if not present
+    //     if (!svgApi.filters.nutrients[field]) svgApi.filters.nutrients[field] = { min: minV, max: maxV };
+
+    //     const fg = ng.append('div').attr('class', 'control-group');
+    //     fg.append('div').attr('class', 'control-row').html(`<span class="control-label">${field}</span><span class="slider-value" id="${safeId(field)}-val">${Math.round(svgApi.filters.nutrients[field].min)}–${Math.round(svgApi.filters.nutrients[field].max)}</span>`);
+
+    //     const row = fg.append('div').attr('class', 'control-row').style('flex-direction', 'column').style('gap', '6px');
+
+    //     // min slider
+    //     row.append('input')
+    //       .attr('type', 'range')
+    //       .attr('min', minV)
+    //       .attr('max', maxV)
+    //       .attr('value', svgApi.filters.nutrients[field].min)
+    //       .attr('step', Math.max(1, (maxV - minV) / 100))
+    //       .on('input', function () {
+    //         const v = Number(this.value);
+    //         svgApi.filters.nutrients[field].min = v;
+    //         d3.select(`#${safeId(field)}-val`).text(Math.round(svgApi.filters.nutrients[field].min) + '–' + Math.round(svgApi.filters.nutrients[field].max));
+    //         debouncedRedraw();
+    //       });
+
+    //     // max slider
+    //     row.append('input')
+    //       .attr('type', 'range')
+    //       .attr('min', minV)
+    //       .attr('max', maxV)
+    //       .attr('value', svgApi.filters.nutrients[field].max)
+    //       .attr('step', Math.max(1, (maxV - minV) / 100))
+    //       .on('input', function () {
+    //         const v = Number(this.value);
+    //         svgApi.filters.nutrients[field].max = v;
+    //         d3.select(`#${safeId(field)}-val`).text(Math.round(svgApi.filters.nutrients[field].min) + '–' + Math.round(svgApi.filters.nutrients[field].max));
+    //         debouncedRedraw();
+    //       });
+    //   });
+    // }
+
+    // // initial render
+    // renderNutrientSliders();
 
     // small helper to make an id-safe string
     function safeId(s) { return 'fld-' + s.replace(/[^a-z0-9_-]/gi, '_'); }
+  }
+
+  // Render a simple legend into #legend using diet_type colors
+  function renderLegend(svgApi) {
+    const raw = svgApi.raw || [];
+    const legendEl = document.getElementById('legend');
+    if (!legendEl) return;
+    // Clear existing
+    legendEl.innerHTML = '';
+
+    const dietTypes = Array.from(new Set(raw.map(d => d.diet_type).filter(Boolean)));
+    if (dietTypes.length === 0) return;
+
+    const dietColor = getDietColorScale(raw);
+
+    const title = document.createElement('h4');
+    title.textContent = 'Diet type';
+    legendEl.appendChild(title);
+
+    dietTypes.forEach(dt => {
+      const row = document.createElement('div');
+      row.className = 'legend-item';
+      const sw = document.createElement('span');
+      sw.className = 'swatch';
+      sw.style.backgroundColor = dietColor(dt);
+      row.appendChild(sw);
+      const lbl = document.createElement('span');
+      lbl.className = 'label';
+      lbl.textContent = dt;
+      row.appendChild(lbl);
+      legendEl.appendChild(row);
+    });
+
+    // --- Size meaning: sample min/avg/max for Calories (blob size) ---
+    const calorieVals = raw.map(m => {
+      const c = Number(m.Calories || m['Calories'] || m.Calories_Burned || m.Calories_Burned);
+      return isFinite(c) ? c : NaN;
+    }).filter(v => !Number.isNaN(v));
+    if (calorieVals.length > 0) {
+      const minC = Math.round(d3.min(calorieVals));
+      const avgC = Math.round(d3.mean(calorieVals));
+      const maxC = Math.round(d3.max(calorieVals));
+
+      const sizeTitle = document.createElement('h4');
+      sizeTitle.textContent = 'Blob size (≈)';
+      legendEl.appendChild(sizeTitle);
+
+      // simple sqrt scale for sample diameters in legend
+      const sampleScale = d3.scaleSqrt().domain([minC, maxC]).range([8, 24]);
+      const samples = [ {label: `min: ${minC}` , value: minC}, {label: `avg: ${avgC}`, value: avgC}, {label: `max: ${maxC}`, value: maxC} ];
+      samples.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'legend-size-item';
+        const sw = document.createElement('span');
+        sw.className = 'sswatch';
+        const dpx = Math.max(6, Math.round(sampleScale(s.value) * 2));
+        sw.style.width = dpx + 'px';
+        sw.style.height = dpx + 'px';
+        row.appendChild(sw);
+        const lbl = document.createElement('span');
+        lbl.className = 'label';
+        lbl.textContent = `${s.label} kcal`;
+        row.appendChild(lbl);
+        legendEl.appendChild(row);
+      });
+
+      const note = document.createElement('div');
+      note.style.fontSize = '12px';
+      note.style.color = '#444';
+      note.style.marginTop = '6px';
+      note.textContent = 'Blob area ≈ Calories (larger = more calories)';
+      legendEl.appendChild(note);
+    }
   }
 
   // debounced visual-only update used by UI events: update dot colors/opacities without changing positions
@@ -533,14 +693,15 @@
   // recreate dietColor to ensure consistent mapping (use food-like palette)
   const dietColor = getDietColorScale(svgApi.raw);
 
-    // update each bound node's matched flag
-    svg.selectAll('.meal-blob').each(function (d) {
+    // update each bound node's matched flag (use panGroup when present)
+    const blobContainer = (svgApi.panGroup || svgApi.svg);
+    blobContainer.selectAll('.meal-blob').each(function (d) {
       if (!d || !d.meal) return;
       d.matched = matchesFilters(d.meal, filters);
     });
 
     // animate color and slight opacity change to visually transition
-    svg.selectAll('.meal-blob')
+    blobContainer.selectAll('.meal-blob')
       .transition()
       .duration(450)
       .attr('fill', d => (d.matched ? dietColor(d.meal.diet_type) : '#cfcfcf'))
