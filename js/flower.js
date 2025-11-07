@@ -1,10 +1,24 @@
 class Flower {
 
   // Constructor to initialize flower plot
-  constructor(parentElement, data) {
+  constructor(parentElement, data, workoutType = "HIIT", dietType = "Vegetarian") {
     console.log("Start initializing flower plot");
     this.parentElement = parentElement;
     this.data = data;
+    this.displayData = [];
+    
+    this.workoutType = workoutType;
+    this.dietType = dietType;
+    
+    this.petalLengthOption = "Calories"; // Options: "Calories", "Calories_Burned"
+    
+    // Compute data ranges for scaling
+    this.waterIntakeRange = d3.extent(this.data, d => d["Water_Intake (liters)"]);
+    this.caloriesIntake = d3.extent(this.data, d => d["Calories"]);
+    this.caloriesBurnedRange = d3.extent(this.data, d => d["Calories_Burned"]);
+    this.workoutFreqRange = [2, 5];
+    this.bmiRange = d3.extent(this.data, d => d["BMI"]);
+    this.dietFreqRange = d3.extent(this.data, d => d["Daily meals frequency"]);
 
     // Prepare colors for the flower petals
     this.colorPalette = d3.scaleOrdinal(d3.schemePastel1);
@@ -22,18 +36,50 @@ class Flower {
     this.fmtInt = d3.format(",");
     this.fmt1 = d3.format(".1f");
 
-    // Process data for visualization
-    this.prepareData(this.displayData);
-
     console.log("Finished initializing flower plot");
   }
 
-  prepareData(displayData) {
-    this.frequencyOfDiet = displayData.map(d => Math.round(d["Daily meals frequency"]));
-    this.caloriesBurned = displayData.map(d => +d["Calories_Burned"]);
-    this.calories = displayData.map(d => +d["Calories"]);
-    this.waterIntake = displayData.map(d => +d["Water_Intake (liters)"]);
-    this.workoutFrequency = displayData.map(d => Math.round(d["Workout_Frequency (days/week)"]));
+  wrangleData() {
+      let vis = this;
+      
+      console.log('isArray:', Array.isArray(vis.data), vis.data);
+      
+      // Group calories, calories burned, water intake, and workout frequency by workout type -> diet type
+      const groupedData = d3.rollup(vis.data,
+          v => ({
+              avgWater: d3.mean(v, d => d["Water_Intake (liters)"]),
+              avgCaloriesIntake: d3.mean(v, d => d["Calories"]),
+              avgCaloriesBurned: d3.mean(v, d => d["Calories_Burned"]),
+              avgWorkoutFreq: d3.mean(v, d => d["Workout_Frequency (days/week)"]),
+              avgBMI: d3.mean(v, d => d["BMI"]),
+              avgDietFreq : d3.mean(v, d => d["Daily meals frequency"]),
+              count: v.length
+          }),
+          d => d["Workout_Type"],
+          d => d["diet_type"],
+          d => Math.round(d["Age"] / 10) * 10
+      );
+      
+      const flatData = [];
+      
+      groupedData.forEach((dietMap, workoutType) => {
+          dietMap.forEach((ageMap, dietType) => {
+              ageMap.forEach((stats, ageGroup) => {
+                  flatData.push({
+                      Workout_Type: workoutType,
+                      diet_type: dietType,
+                      AgeGroup: ageGroup,
+                      ...stats // flatten the rest of the attributes
+                  });
+              });
+          });
+      });
+      
+      vis.groupedData = groupedData;
+      vis.displayData = flatData;
+      
+      console.log("Flattened data by workout type and diet type:");
+      console.log(flatData);
   }
 
   /*
@@ -49,7 +95,9 @@ class Flower {
     vis.width = document.getElementById(vis.parentElement).getBoundingClientRect().width - vis.margin.left - vis.margin.right;
     vis.height = document.getElementById(vis.parentElement).getBoundingClientRect().height - vis.margin.top - vis.margin.bottom;
     console.log(`Flower plot dimensions: ${vis.width} x ${vis.height}`);
-
+      
+    vis.wrangleData();
+    
     // SVG Drawing area
     vis.svg = d3.select("#" + vis.parentElement).append("svg")
       .attr("width", vis.width + vis.margin.left + vis.margin.right)
@@ -64,15 +112,14 @@ class Flower {
 
     // Scales and axes
     vis.petalWidth = d3.scaleLinear()
-        .domain(d3.extent(vis.frequencyOfDiet))
+        .domain(vis.dietFreqRange)
         .range([10, 28]);
 
     vis.petalLength = d3.scaleLinear()
-        .domain(d3.extent(vis.calories))
         .range([vis.minOuterR, vis.maxOuterR]);
 
     vis.shading = d3.scaleLinear()
-        .domain(d3.extent(vis.waterIntake)) // TODO: should be proportion of area shaded, not percentage of alpha
+        .domain(vis.waterIntakeRange)
         .range([0.3, 1]);
 
     vis.numLines = d => d;
@@ -82,7 +129,7 @@ class Flower {
     // TODO: might require change
 
     // Draw plate
-    vis.drawPlate();
+    // vis.drawPlate();
 
     vis.flower = vis.svg.append("g")
         .attr("transform", `translate(${vis.width/2},${vis.height/2})`);
@@ -95,6 +142,19 @@ class Flower {
 
     // Disabled: Enable breathing
     // vis.enableBreathing();
+      
+    
+  }
+  
+  updateVis() {
+      let vis = this;
+      
+      // Update scales based on user selection
+      if (vis.petalLengthOption === "Calories") {
+          vis.petalLength.domain(vis.caloriesIntake);
+      } else if (vis.petalLengthOption === "Calories_Burned") {
+          vis.petalLength.domain(vis.caloriesBurnedRange);
+      }
   }
 
   // TODO: remove all this.xxx
