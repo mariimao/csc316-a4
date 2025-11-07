@@ -1,5 +1,6 @@
 
 let flower;
+let ageGenderHeatmap;
 
 loadData();
 
@@ -11,8 +12,10 @@ function loadData() {
 
         console.log("Prepared", prepared);
 
-        flower = new Flower("flower", prepared);
-        flower.initVis();
+        // flower = new Flower("flower", prepared);
+        // flower.initVis();
+        ageGenderHeatmap = new AgeGenderHeatmap("age-gender-heatmap", prepared);
+        ageGenderHeatmap.initVis();
     })
 }
 
