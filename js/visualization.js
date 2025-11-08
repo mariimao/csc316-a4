@@ -129,19 +129,10 @@
     // store reference for animation loop and other code paths
     svgApi.panGroup = panGroup;
 
-    // enable panning by dragging the background rect (updates panGroup transform)
+    // Background dragging (panning) intentionally disabled to avoid accidental pan when clicking the background.
+    // If you want to re-enable panning by background drag, replace the following lines with the d3.drag() call.
     const bg = svg.select('rect.category');
-    bg.call(
-      d3.drag()
-        .on('start', () => bg.style('cursor', 'grabbing'))
-        .on('drag', (event) => {
-          // event.dx/dy are in screen pixels; move content with the drag
-          svgApi.pan.x += event.dx;
-          svgApi.pan.y += event.dy;
-          panGroup.attr('transform', `translate(${Math.round(svgApi.pan.x)},${Math.round(svgApi.pan.y)})`);
-        })
-        .on('end', () => bg.style('cursor', 'grab'))
-    );
+    bg.style('cursor', 'default');
 
     if (!data || data.length === 0) {
       // fallback label if no data
@@ -201,7 +192,13 @@
     // Tooltip div
     let tooltip = d3.select('body').select('.viz-tooltip');
     if (tooltip.empty()) {
-      tooltip = d3.select('body').append('div').attr('class', 'viz-tooltip').style('display', 'none');
+      // create tooltip with initial opacity 0 so it can be shown via opacity transitions
+      tooltip = d3.select('body')
+        .append('div')
+        .attr('class', 'viz-tooltip')
+        .style('opacity', 0)
+        .style('position', 'absolute')
+        .style('pointer-events', 'none');
     }
 
     const panGroupSel = svgApi.panGroup || svg.select('g.pan-group');
@@ -261,7 +258,7 @@
 
   // --- draw meal dots inside this category circle ---
       // collect ALL meals for this Workout_Type; we'll mark which ones match active filters
-      const allMeals = raw.filter(row => row.Workout_Type === d.key);
+    const allMeals = raw.filter(row => row.Workout_Type === d.key);
       const filters = svgApi.filters || {};
 
       // helper to test whether a meal passes current filters
@@ -282,72 +279,104 @@
 
       if (allMeals.length === 0) return;
 
-      // dynamic node radius based on a numeric meal attribute (Calories)
-      // compute numeric calories for meals (use all meals to keep sizes consistent)
-      const mealCalories = allMeals.map(m => {
-        const c = Number(m.Calories || m['Calories'] || m.Calories_Burned || m.Calories_Burned);
-        return isFinite(c) ? c : NaN;
-      }).filter(c => !Number.isNaN(c));
+      // GROUP meals by diet_type for this category — each node will represent a diet_type
+      const dietMap = d3.rollup(allMeals, v => ({
+        count: v.length,
+        meals: v,
+        caloriesSum: d3.sum(v, m => Number(m.Calories || m['Calories'] || m.Calories_Burned || m.Calories_Burned) || 0)
+      }), m => m.diet_type || 'Unknown');
 
-  // default node radius range as fractions of the parent circle so they scale responsively
-  const minNode = Math.max(3, Math.round(r * 0.04));
-  const maxNode = Math.max(minNode + 2, Math.round(r * 0.18));
+      const dietEntries = Array.from(dietMap, ([diet, info]) => ({ diet, ...info }));
 
-      let sizeScale = null;
-      if (mealCalories.length >= 2) {
-        const minC = d3.min(mealCalories);
-        const maxC = d3.max(mealCalories);
-        sizeScale = d3.scaleSqrt().domain([minC, maxC]).range([minNode, maxNode]);
-      }
+      // default node radius range as fractions of the parent circle so they scale responsively
+      const minNode = Math.max(6, Math.round(r * 0.06));
+      const maxNode = Math.max(minNode + 4, Math.round(r * 0.22));
 
-      // create nodes for simulation from ALL meals, with radius per node (dynamic). Mark whether they match filters.
-      const nodes = allMeals.map((m, idx) => {
-        const rawCal = Number(m.Calories || m['Calories'] || m.Calories_Burned || m.Calories_Burned);
-        const cal = isFinite(rawCal) ? rawCal : d3.mean(mealCalories) || (minNode + maxNode) / 2;
-        const ndR = sizeScale ? Math.round(sizeScale(cal)) : Math.max(6, Math.min(12, Math.floor(r / 6)));
+      // size by count (or caloriesSum if you prefer)
+      const countExtent = d3.extent(dietEntries, e => e.count);
+      const sizeScale = d3.scaleSqrt().domain(countExtent).range([minNode, maxNode]);
+
+      // create nodes for simulation from diet groups
+      const nodes = dietEntries.map((g, idx) => {
+        const ndR = Math.round(sizeScale(g.count));
         return {
-          id: `${i}-${idx}`,
-          meal: m,
-          x: cx + (Math.random() - 0.5) * r * 0.8,
-          y: cy + (Math.random() - 0.5) * r * 0.8,
+          id: `${i}-diet-${idx}`,
+          diet: g.diet,
+          meals: g.meals,
+          count: g.count,
+          caloriesSum: g.caloriesSum,
+          x: cx + (Math.random() - 0.5) * r * 0.6,
+          y: cy + (Math.random() - 0.5) * r * 0.6,
           r: ndR,
-          // blob animation params
           _phase: Math.random() * Math.PI * 2,
           _freq: 0.6 + Math.random() * 1.2,
           _amp: 0.06 + Math.random() * 0.12,
-          matched: mealMatchesFilters(m),
+          // matched if any meal in this diet group passes filters
+          matched: g.meals.some(m => mealMatchesFilters(m)),
         };
       });
 
-      // bind nodes to animated blob path elements (inside pan-group)
-      const blobs = (svgApi.panGroup || svg)
-        .selectAll(`.meal-blob-${i}`)
+      // Instead of SVG path blobs, render a small Flower widget per diet-group
+      // Create an overlay-backed div for each node and instantiate Flower + FlowerData
+      const overlay = svgApi.overlay || d3.select('#viz').select('.viz-overlay');
+      const categoryKey = d.key; // workout type for this category
+
+      const flowers = overlay
+        .selectAll(`.mini-flower-${i}`)
         .data(nodes, d => d.id)
-        .join('path')
-        .attr('class', `meal-blob meal-blob-${i}`)
-        .attr('d', d => blobPath(d.x, d.y, d.r, 8, d._phase, d._freq, d._amp))
-        .attr('fill', nd => (nd.matched ? dietColor(nd.meal.diet_type) : '#cfcfcf'))
-        .attr('stroke', 'rgba(0,0,0,0.06)')
-        .attr('stroke-width', 1)
-        .attr('opacity', d => (d.matched ? 1 : 0.65))
-        .on('mouseover', function (event, nd) {
-          d3.select(this).attr('stroke', '#000').attr('stroke-width', 1.5);
-          const tt = d3.select('body').select('.viz-tooltip');
-          tt.style('display', 'block').html(`<strong>${nd.meal.meal_name || 'Meal'}</strong><br/>Diet: ${nd.meal.diet_type || '—'}`);
-        })
-        .on('mousemove', function (event) {
-          d3.select('body').select('.viz-tooltip').style('left', event.pageX + 12 + 'px').style('top', event.pageY + 12 + 'px');
-        })
-        .on('mouseout', function () {
-          d3.select(this).attr('stroke', 'rgba(0,0,0,0.06)').attr('stroke-width', 1);
-          d3.select('body').select('.viz-tooltip').style('display', 'none');
-        });
+        .join(
+          enter => enter.append('div')
+            .attr('class', `mini-flower mini-flower-${i}`)
+            .style('position', 'absolute')
+            .style('pointer-events', 'auto')
+            .each(function (nd) {
+              // size the container conservatively around the node radius
+              const sizePx = Math.max(48, nd.r * 3); // smaller base and multiplier to reduce petals
+              nd.containerSize = sizePx; // store on node for collision and clamping
+              d3.select(this).style('width', sizePx + 'px').style('height', sizePx + 'px');
+              // unique id used by Flower constructor (no #)
+              const fid = `flower-${nd.id}`;
+              d3.select(this).attr('id', fid);
+              // create FlowerData and Flower instance for this diet-group
+              try {
+                // create FlowerData in flat mode so each meal becomes its own petal
+                const fd = new FlowerData(nd.meals, { flat: true });
+                // instantiate Flower; workoutType = categoryKey, dietType = nd.diet
+                const widget = new Flower(fid, fd, categoryKey, nd.diet);
+
+                // Scale down the default radii so petals are appropriate for the small container.
+                // Use container-based heuristics: center radius ~8% of size, outer radii fractions
+                widget.centerR = Math.max(4, Math.round(sizePx * 0.08));
+                widget.minOuterR = Math.max(8, Math.round(sizePx * 0.22));
+                widget.maxOuterR = Math.max(widget.minOuterR + 6, Math.round(sizePx * 0.45));
+                // petal width range relative to container
+                widget.petalDisplayWidthRange = [Math.max(6, Math.round(sizePx * 0.12)), Math.max(10, Math.round(sizePx * 0.22))];
+                // keep shading/opactiy defaults but ensure reasonable range
+                widget.opacityDisplayRange = [0.45, 0.9];
+
+                // Ensure the widget uses the same diet color scale as the main legend
+                try { widget.colorPalette = dietColor; } catch (e) { /* ignore */ }
+                nd._flowerWidget = widget;
+                nd._flowerWidget.initVis();
+                // reduce pointer-events on inner svg to allow dragging the container
+                d3.select(`#${fid}`).select('svg').style('pointer-events', 'auto');
+              } catch (err) {
+                console.warn('Failed to create Flower widget', err);
+              }
+            }),
+          update => update.each(function (nd) {
+            const sizePx = Math.max(48, nd.r * 3);
+            nd.containerSize = sizePx;
+            d3.select(this).style('width', sizePx + 'px').style('height', sizePx + 'px');
+          }),
+          exit => exit.remove()
+        );
 
       // live force simulation to avoid overlaps and animate when nodes move (supports dragging)
       const sim = d3.forceSimulation(nodes)
         .velocityDecay(0.2)
         .force('charge', d3.forceManyBody().strength(0))
-        .force('collide', d3.forceCollide().radius(d => d.r + 1).iterations(2))
+        .force('collide', d3.forceCollide().radius(d => ((d.containerSize ? d.containerSize / 2 : d.r) + 6)).iterations(2))
         .force('x', d3.forceX(cx).strength(0.06))
         .force('y', d3.forceY(cy).strength(0.06));
 
@@ -360,7 +389,7 @@
           const dx = n.x - cx;
           const dy = n.y - cy;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
-          const maxDist = r - n.r - 1;
+          const maxDist = r - (n.containerSize ? n.containerSize / 2 : n.r) - 4;
           if (dist > maxDist) {
             const scale = maxDist / dist;
             n.x = cx + dx * scale;
@@ -368,8 +397,19 @@
           }
         });
 
-        // update only this category's blobs (path 'd')
-        (svgApi.panGroup || svg).selectAll(`.meal-blob-${i}`).attr('d', d => blobPath(d.x, d.y, d.r, 8, d._phase, d._freq, d._amp));
+        // update mini-flower container positions for this category
+        try {
+          const ov = svgApi.overlay || d3.select('#viz').select('.viz-overlay');
+          ov.selectAll(`.mini-flower-${i}`).style('left', function(d) {
+            const size = (d.containerSize || Math.max(48, d.r * 3));
+            return (d.x - size / 2) + 'px';
+          }).style('top', function(d) {
+            const size = (d.containerSize || Math.max(48, d.r * 3));
+            return (d.y - size / 2) + 'px';
+          });
+        } catch (e) {
+          // ignore overlay positioning errors
+        }
       });
 
       // initialize the simulation with a small nudge so it settles visually
@@ -389,7 +429,7 @@
           const dx = nx - cx;
           const dy = ny - cy;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
-          const maxDist = r - d.r - 1;
+          const maxDist = r - (d.containerSize ? d.containerSize / 2 : d.r) - 4;
           if (dist > maxDist) {
             const scale = maxDist / dist;
             d.fx = cx + dx * scale;
@@ -406,13 +446,38 @@
           d.fy = null;
         });
 
-  // apply drag to blobs of this category (inside pan-group)
-  (svgApi.panGroup || svg).selectAll(`.meal-blob-${i}`).call(drag);
+  // apply drag to the mini-flower containers for this category (overlay)
+  try {
+    const ov = svgApi.overlay || d3.select('#viz').select('.viz-overlay');
+    ov.selectAll(`.mini-flower-${i}`).call(drag);
+  } catch (e) {
+    try { (svgApi.panGroup || svg).selectAll(`.meal-blob-${i}`).call(drag); } catch (ee) { /* ignore */ }
+  }
     });
   }
 
   // bootstrap: create svg and then load data
   const svgApi = createFullscreenSVG('#viz');
+
+  // create an overlay container (absolute) inside #viz for small HTML flower widgets
+  try {
+    const containerSel = d3.select('#viz');
+    // ensure container is positioned for absolutely positioned children
+    containerSel.style('position', 'relative');
+    if (containerSel.select('.viz-overlay').empty()) {
+      containerSel.append('div')
+        .attr('class', 'viz-overlay')
+        .style('position', 'absolute')
+        .style('left', 0)
+        .style('top', 0)
+        .style('width', '100%')
+        .style('height', '100%')
+        .style('pointer-events', 'none'); // allow pointer events on child flowers explicitly
+    }
+    svgApi.overlay = containerSel.select('.viz-overlay');
+  } catch (e) {
+    // ignore overlay creation failures
+  }
 
   // Load CSV, wrangle, and draw top-4 Workout_Type categories
   d3.csv('data/meal_metadata.csv').then(raw => {
@@ -451,24 +516,15 @@
       }, 80)
     );
 
-    // Start a continuous animation loop to update blob shapes even when the force is idle
-    (function animateBlobs() {
+    // Start a light animation loop. We no longer animate SVG blob paths; keep loop for
+    // potential future widget refreshes. Currently it ensures requestAnimationFrame keeps running.
+    (function animateWidgets() {
       try {
-        if (svgApi && svgApi.panGroup) {
-          svgApi.panGroup.selectAll('.meal-blob').each(function (d) {
-            if (!d) return;
-            d3.select(this).attr('d', blobPath(d.x, d.y, d.r, 8, d._phase, d._freq, d._amp));
-          });
-        } else if (svgApi && svgApi.svg) {
-          svgApi.svg.selectAll('.meal-blob').each(function (d) {
-            if (!d) return;
-            d3.select(this).attr('d', blobPath(d.x, d.y, d.r, 8, d._phase, d._freq, d._amp));
-          });
-        }
+        // Future: we could add subtle widget breathing here by scaling mini-flower containers.
       } catch (e) {
-        // ignore animation errors
+        // ignore
       }
-      requestAnimationFrame(animateBlobs);
+      requestAnimationFrame(animateWidgets);
     })();
 
     // Expose for debugging
@@ -520,93 +576,6 @@
       makePill(mt);
     });
 
-    // --- numeric nutrient sliders ---
-    // // pick likely nutrient columns by matching header names
-    // const headers = raw.length ? Object.keys(raw[0]) : [];
-    // const detectedNutrients = headers.filter(h => /calor|protein|fat|carb|sugar|sodium|cholesterol/i.test(h));
-
-    // // Store a user-selectable set of nutrients to show (defaults to all detected)
-    // if (!svgApi.nutrientSelection) {
-    //   svgApi.nutrientSelection = {};
-    //   detectedNutrients.forEach(k => { svgApi.nutrientSelection[k] = true; });
-    // }
-
-    // // Container and chooser UI so users can remove some nutrients from the controls
-    // const chooser = container.append('div').attr('class', 'control-group');
-    // chooser.append('h3').text('Choose nutrients');
-    // const chooserRow = chooser.append('div').attr('class', 'control-row').style('display', 'flex').style('flex-wrap', 'wrap').style('gap', '8px');
-
-    // detectedNutrients.forEach(field => {
-    //   const label = chooserRow.append('label').attr('class', 'control-row').style('align-items', 'center').style('gap', '6px');
-    //   label.append('input')
-    //     .attr('type', 'checkbox')
-    //     .property('checked', !!svgApi.nutrientSelection[field])
-    //     .on('change', function () {
-    //       svgApi.nutrientSelection[field] = this.checked;
-    //       // re-render sliders when selection changes
-    //       renderNutrientSliders();
-    //     });
-    //   label.append('span').attr('class', 'control-label').text(field).style('font-size', '12px');
-    // });
-
-    // // container where sliders are rendered; renderNutrientSliders will populate it
-    // const slidersWrapper = container.append('div').attr('id', 'nutrient-sliders');
-
-    // // render sliders for currently selected nutrients
-    // function renderNutrientSliders() {
-    //   slidersWrapper.html('');
-    //   const nutrientKeys = detectedNutrients.filter(k => svgApi.nutrientSelection[k]);
-    //   if (nutrientKeys.length === 0) return;
-    //   const ng = slidersWrapper.append('div').attr('class', 'control-group');
-    //   ng.append('h3').text('Nutrient filters');
-
-    //   nutrientKeys.forEach(field => {
-    //     const values = raw.map(r => Number(r[field])).filter(v => isFinite(v));
-    //     if (values.length === 0) return;
-    //     const minV = Math.min(...values);
-    //     const maxV = Math.max(...values);
-
-    //     // store initial full-range in filters if not present
-    //     if (!svgApi.filters.nutrients[field]) svgApi.filters.nutrients[field] = { min: minV, max: maxV };
-
-    //     const fg = ng.append('div').attr('class', 'control-group');
-    //     fg.append('div').attr('class', 'control-row').html(`<span class="control-label">${field}</span><span class="slider-value" id="${safeId(field)}-val">${Math.round(svgApi.filters.nutrients[field].min)}–${Math.round(svgApi.filters.nutrients[field].max)}</span>`);
-
-    //     const row = fg.append('div').attr('class', 'control-row').style('flex-direction', 'column').style('gap', '6px');
-
-    //     // min slider
-    //     row.append('input')
-    //       .attr('type', 'range')
-    //       .attr('min', minV)
-    //       .attr('max', maxV)
-    //       .attr('value', svgApi.filters.nutrients[field].min)
-    //       .attr('step', Math.max(1, (maxV - minV) / 100))
-    //       .on('input', function () {
-    //         const v = Number(this.value);
-    //         svgApi.filters.nutrients[field].min = v;
-    //         d3.select(`#${safeId(field)}-val`).text(Math.round(svgApi.filters.nutrients[field].min) + '–' + Math.round(svgApi.filters.nutrients[field].max));
-    //         debouncedRedraw();
-    //       });
-
-    //     // max slider
-    //     row.append('input')
-    //       .attr('type', 'range')
-    //       .attr('min', minV)
-    //       .attr('max', maxV)
-    //       .attr('value', svgApi.filters.nutrients[field].max)
-    //       .attr('step', Math.max(1, (maxV - minV) / 100))
-    //       .on('input', function () {
-    //         const v = Number(this.value);
-    //         svgApi.filters.nutrients[field].max = v;
-    //         d3.select(`#${safeId(field)}-val`).text(Math.round(svgApi.filters.nutrients[field].min) + '–' + Math.round(svgApi.filters.nutrients[field].max));
-    //         debouncedRedraw();
-    //       });
-    //   });
-    // }
-
-    // // initial render
-    // renderNutrientSliders();
-
     // small helper to make an id-safe string
     function safeId(s) { return 'fld-' + s.replace(/[^a-z0-9_-]/gi, '_'); }
   }
@@ -642,7 +611,7 @@
       legendEl.appendChild(row);
     });
 
-    // --- Size meaning: sample min/avg/max for Calories (blob size) ---
+    // --- Petal length: sample short / avg / long (≈ calories) ---
     const calorieVals = raw.map(m => {
       const c = Number(m.Calories || m['Calories'] || m.Calories_Burned || m.Calories_Burned);
       return isFinite(c) ? c : NaN;
@@ -652,35 +621,57 @@
       const avgC = Math.round(d3.mean(calorieVals));
       const maxC = Math.round(d3.max(calorieVals));
 
-      const sizeTitle = document.createElement('h4');
-      sizeTitle.textContent = 'Blob size (≈)';
-      legendEl.appendChild(sizeTitle);
+      const lenTitle = document.createElement('h4');
+      lenTitle.textContent = 'Petal length (calories intake)';
+      legendEl.appendChild(lenTitle);
 
-      // simple sqrt scale for sample diameters in legend
-      const sampleScale = d3.scaleSqrt().domain([minC, maxC]).range([8, 24]);
-      const samples = [ {label: `min: ${minC}` , value: minC}, {label: `avg: ${avgC}`, value: avgC}, {label: `max: ${maxC}`, value: maxC} ];
+      // Map sample calories to visual petal lengths for the legend
+      const sampleScale = d3.scaleLinear().domain([minC, maxC]).range([10, 34]);
+      const samples = [ {label: `short · ${minC}`, value: minC}, {label: `avg · ${avgC}`, value: avgC}, {label: `long · ${maxC}`, value: maxC} ];
+
+      // Create a horizontal container with small SVG samples and labels
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.gap = '8px';
       samples.forEach(s => {
-        const row = document.createElement('div');
-        row.className = 'legend-size-item';
-        const sw = document.createElement('span');
-        sw.className = 'sswatch';
-        const dpx = Math.max(6, Math.round(sampleScale(s.value) * 2));
-        sw.style.width = dpx + 'px';
-        sw.style.height = dpx + 'px';
-        row.appendChild(sw);
-        const lbl = document.createElement('span');
+        const item = document.createElement('div');
+        item.style.display = 'flex';
+        item.style.flexDirection = 'column';
+        item.style.alignItems = 'center';
+
+        const svgNs = 'http://www.w3.org/2000/svg';
+  const ry = Math.max(6, Math.round(sampleScale(s.value)));
+  const rx = 12;
+  // size the SVG to fit the ellipse (add a small vertical padding)
+  const svgHeight = Math.max(ry * 2 + 12, 44);
+  const svg = document.createElementNS(svgNs, 'svg');
+  svg.setAttribute('width', 48);
+  svg.setAttribute('height', svgHeight);
+  const cx = 24;
+  const cy = Math.round(svgHeight / 2);
+
+        const ell = document.createElementNS(svgNs, 'ellipse');
+        ell.setAttribute('cx', cx);
+        ell.setAttribute('cy', cy);
+        ell.setAttribute('rx', rx);
+        ell.setAttribute('ry', ry);
+        ell.setAttribute('fill', '#cfcfcf');
+        ell.setAttribute('stroke', '#6d6d6d');
+        ell.setAttribute('stroke-width', 1);
+        svg.appendChild(ell);
+
+        const lbl = document.createElement('div');
         lbl.className = 'label';
-        lbl.textContent = `${s.label} kcal`;
-        row.appendChild(lbl);
-        legendEl.appendChild(row);
+        lbl.style.fontSize = '12px';
+        lbl.style.marginTop = '4px';
+        lbl.textContent = s.label;
+
+        item.appendChild(svg);
+        item.appendChild(lbl);
+        container.appendChild(item);
       });
 
-      const note = document.createElement('div');
-      note.style.fontSize = '12px';
-      note.style.color = '#444';
-      note.style.marginTop = '6px';
-      note.textContent = 'Blob area ≈ Calories (larger = more calories)';
-      legendEl.appendChild(note);
+      legendEl.appendChild(container);
     }
   }
 
@@ -695,16 +686,54 @@
 
     // update each bound node's matched flag (use panGroup when present)
     const blobContainer = (svgApi.panGroup || svgApi.svg);
+    // Nodes may be diet-group objects (with .meals and .diet) or legacy per-meal nodes (with .meal).
     blobContainer.selectAll('.meal-blob').each(function (d) {
-      if (!d || !d.meal) return;
-      d.matched = matchesFilters(d.meal, filters);
+      if (!d) return;
+      if (d.meals && Array.isArray(d.meals)) {
+        // diet-group node: matched if any meal in the group passes filters
+        d.matched = d.meals.some(m => matchesFilters(m, filters));
+      } else if (d.meal) {
+        // legacy single-meal node
+        d.matched = matchesFilters(d.meal, filters);
+      } else {
+        d.matched = false;
+      }
     });
 
     // animate color and slight opacity change to visually transition
     blobContainer.selectAll('.meal-blob')
       .transition()
       .duration(450)
-      .attr('fill', d => (d.matched ? dietColor(d.meal.diet_type) : '#cfcfcf'))
+      .attr('fill', d => {
+        // use diet property when available, otherwise fall back to meal.diet_type
+        const dietKey = d.diet || (d.meal && d.meal.diet_type) || 'Unknown';
+        return d.matched ? dietColor(dietKey) : '#e9e9e9ff';
+      })
       .attr('opacity', d => (d.matched ? 1 : 0.65));
+
+    // Update overlay mini-flowers (if present): refresh widget data and adjust opacity
+    try {
+      const ov = svgApi.overlay || d3.select('#viz').select('.viz-overlay');
+      ov.selectAll('.mini-flower').each(function (nd) {
+        // set container opacity for matched state (node-level)
+        d3.select(this).style('opacity', nd.matched ? 1 : 0.65);
+        // if there's a Flower widget, rebuild its data but keep all petals and mark which
+        // individual meals match the filters so the Flower can grey-out non-matching petals.
+        if (nd._flowerWidget) {
+          const annotated = (nd.meals || []).map(m => Object.assign({}, m, { __matched: matchesFilters(m, filters) }));
+          // create FlowerData in flat mode with annotated rows so Flower.wrangleData preserves matched info
+          const fd = new FlowerData(annotated, { flat: true });
+          try {
+            nd._flowerWidget.data = fd;
+            nd._flowerWidget.wrangleData();
+            nd._flowerWidget.updateVis();
+          } catch (err) {
+            // ignore widget update errors
+          }
+        }
+      });
+    } catch (e) {
+      // ignore overlay update errors
+    }
   }, 120);
 })();

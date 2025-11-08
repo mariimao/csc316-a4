@@ -50,6 +50,20 @@ body {
   z-index: 1000;
 }
 
+/* Ensure overlay widgets render above the main SVG and are not clipped */
+.viz-overlay {
+  z-index: 1000; /* above the SVG */
+}
+
+/* Allow mini-flower containers to show petals beyond their bounding box */
+.mini-flower {
+  overflow: visible;
+}
+
+.mini-flower svg {
+  overflow: visible;
+}
+
 /* curved text on category path */
 .category-text {
   font-size: 12px;

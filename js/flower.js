@@ -37,23 +37,54 @@ class Flower {
       
       console.log("Wrangling data");
       console.log(vis.data.data);
-      
-      const workoutMap = vis.data.data.get(vis.workoutType);
-      const dietMap = workoutMap ? workoutMap.get(vis.dietType) : undefined;
-      if (!dietMap) {
-          console.warn(`No data for ${vis.workoutType} + ${vis.dietType}`);
-          vis.displayData = [];
-          return;
-      }
-      
-      const subset = Array.from(dietMap, ([ageGroup, stats]) => ({
-          Workout_Type: vis.workoutType,
-          diet_type: vis.dietType,
-          AgeGroup: ageGroup,
-          ...stats      // avgWater, avgCaloriesIntake, ...
+    // If FlowerData was created in flat mode, vis.data.raw contains meal rows
+    if (vis.data && vis.data.raw && Array.isArray(vis.data.raw)) {
+      const rows = vis.data.raw;
+      // filter by workoutType/dietType if provided
+      const filtered = rows.filter(r => {
+        if (vis.workoutType && r.Workout_Type && r.Workout_Type !== vis.workoutType) return false;
+        if (vis.dietType && r.diet_type && r.diet_type !== vis.dietType) return false;
+        return true;
+      });
+
+      // Map each meal row to an object the Flower expects (one petal per meal).
+      // Preserve any __matched flag placed on the raw rows so we can grey-out petals
+      // that don't match filters instead of removing them.
+      const mapped = filtered.map(r => ({
+        Workout_Type: r.Workout_Type || vis.workoutType,
+        diet_type: r.diet_type || vis.dietType,
+        AgeGroup: Number(r.Age) || 0,
+        avgCaloriesIntake: Number(r.Calories) || Number(r['Calories']) || 0,
+        avgCaloriesBurned: Number(r.Calories_Burned) || 0,
+        avgDietFreq: Number(r['Daily meals frequency']) || 1,
+        avgWater: Number(r['Water_Intake (liters)']) || 0,
+        avgWorkoutFreq: Number(r['Workout_Frequency (days/week)']) || 0,
+        avgBMI: Number(r.BMI) || 0,
+        count: 1,
+        // propagate matched flag (default true)
+        matched: (typeof r.__matched !== 'undefined') ? !!r.__matched : true
       }));
+      vis.displayData = mapped;
+      return;
+    }
+
+    // Default/aggregated mode: rollup by Workout_Type -> diet_type -> AgeGroup
+    const workoutMap = vis.data.data.get(vis.workoutType);
+    const dietMap = workoutMap ? workoutMap.get(vis.dietType) : undefined;
+    if (!dietMap) {
+      console.warn(`No data for ${vis.workoutType} + ${vis.dietType}`);
+      vis.displayData = [];
+      return;
+    }
       
-      vis.displayData = subset;
+    const subset = Array.from(dietMap, ([ageGroup, stats]) => ({
+      Workout_Type: vis.workoutType,
+      diet_type: vis.dietType,
+      AgeGroup: ageGroup,
+      ...stats      // avgWater, avgCaloriesIntake, ...
+    }));
+      
+    vis.displayData = subset;
 
       console.log("Flattened data by workout type and diet type:");
       console.log(subset);
@@ -83,9 +114,17 @@ class Flower {
       .attr("transform", "translate(" + vis.margin.left + "," + vis.margin.top + ")");
 
     // Add tooltip placeholder
-    vis.tooltip = d3.select("body")
-        .append("div")
-        .attr("class", "tooltip");
+    // Reuse the global visualization tooltip if present, otherwise create one
+    // Use the same class as the main visualization (viz-tooltip) so CSS is shared
+    vis.tooltip = d3.select('body').select('.viz-tooltip');
+    if (vis.tooltip.empty()) {
+      vis.tooltip = d3.select('body')
+        .append('div')
+        .attr('class', 'viz-tooltip')
+        .style('opacity', 0)
+        .style('position', 'absolute')
+        .style('pointer-events', 'none');
+    }
 
     // Scales and axes
     vis.petalWidth = d3.scaleLinear()
@@ -94,8 +133,13 @@ class Flower {
     vis.petalLength = d3.scaleLinear()
         .range([vis.minOuterR, vis.maxOuterR]);
 
-    vis.shading = d3.scaleLinear()
-        .range(vis.opacityDisplayRange);
+  // NOTE: petal opacity is now constant (water intake encoding removed)
+  // keep opacityDisplayRange for compatibility but we won't use a data-driven scale
+  vis.defaultPetalOpacity = 0.7;
+
+  // Petal width is now constant (removed encoding by avgDietFreq)
+  // Use the midpoint of the configured display range as the default width
+  vis.defaultPetalWidth = (vis.petalDisplayWidthRange[0] + vis.petalDisplayWidthRange[1]) / 2;
 
     vis.flower = vis.svg.append("g")
         .attr("transform", `translate(${vis.width/2},${vis.height/2})`);
@@ -133,11 +177,8 @@ class Flower {
       high = d3.quantile(vals, 0.85);
       vis.petalWidth.domain([low, high]).clamp(true);
       
-      // 3. Shading scale
-      vals = vis.displayData.map(d => d.avgWater);
-      low = d3.quantile(vals, 0.15);
-      high = d3.quantile(vals, 0.85);
-      vis.shading.domain([low, high]).clamp(true);
+  // 3. Shading scale removed — petal opacity is constant now
+  // (previously encoded by avgWater)
       
       vis.drawFlowerPetals();
   }
@@ -159,66 +200,82 @@ class Flower {
     
     
     // Flower petals for every instance of this.displayData
-    const petals = vis.flower.selectAll("ellipse")
-        .data(vis.displayData)
-        .join("ellipse")
-        .attr("class", "petal")
-        .attr("cx", (d, i) => {
-            const theta = (i / n) * 2 * Math.PI; // angle for petal
-            const offset = this.centerR + this.degOfSpread * petalLen(d);
-            return Math.cos(theta) * offset;
-        })
-        .attr("cy", (d, i) => {
-            const theta = (i / n) * 2 * Math.PI; // angle for petal
-            const offset = this.centerR + this.degOfSpread * petalLen(d);
-            return Math.sin(theta) * offset;
-        })
-        .attr("rx", d => petalWid(d))
-        .attr("ry", (d) => petalLen(d))
-        .attr("transform", (d, i) => {
-            const theta = (i / n) * 360; // angle for petal in degrees
-            const offset = this.centerR + this.degOfSpread * petalLen(d);
-            const cx = Math.cos((i / n) * 2 * Math.PI) * offset;
-            const cy = Math.sin((i / n) * 2 * Math.PI) * offset;
-            return `rotate(${theta - 90}, ${cx}, ${cy})`;
-        })
-        .attr("fill", vis.colorPalette(vis.dietType))
-        .attr("fill-opacity", d => this.shading(d.avgWater))
-        .attr("stroke", vis.getBorderColor(vis.dietType))
-        .attr("stroke-width", 1)
-        .style("cursor", "pointer")
-        .on("mouseenter", (e, d) => {
-          // Highlight the selected petal
-          d3.select(e.currentTarget)
-              .attr("stroke-width", 2.5)
-              .attr("fill-opacity", 1)
-              .raise();
+    const petals = vis.flower.selectAll("ellipse").data(vis.displayData).join("ellipse")
+      .attr("class", "petal");
 
-          // Configure tooltip content and position
-          const html =
-              `<div class="h">${d.diet_type ?? "Diet type"}, Age group: ${d.AgeGroup}-${d.AgeGroup + 9}</div>
+    // Set positioning and visual attributes (positions updated immediately)
+    petals
+      .attr("cx", (d, i) => {
+        const theta = (i / n) * 2 * Math.PI; // angle for petal
+        const offset = this.centerR + this.degOfSpread * petalLen(d);
+        return Math.cos(theta) * offset;
+      })
+      .attr("cy", (d, i) => {
+        const theta = (i / n) * 2 * Math.PI; // angle for petal
+        const offset = this.centerR + this.degOfSpread * petalLen(d);
+        return Math.sin(theta) * offset;
+      })
+      .attr("rx", d => petalWid(d))
+      .attr("ry", (d) => petalLen(d))
+      .attr("transform", (d, i) => {
+        const theta = (i / n) * 360; // angle for petal in degrees
+        const offset = this.centerR + this.degOfSpread * petalLen(d);
+        const cx = Math.cos((i / n) * 2 * Math.PI) * offset;
+        const cy = Math.sin((i / n) * 2 * Math.PI) * offset;
+        return `rotate(${theta - 90}, ${cx}, ${cy})`;
+      })
+      .attr("stroke-width", 1)
+      .style("cursor", "pointer");
+
+    // Animate color, opacity and stroke changes so petals softly transition when filters change
+    petals.transition().duration(300)
+      .attr("fill", d => (d.matched ? vis.colorPalette(vis.dietType) : '#cfcfcf'))
+      .attr("fill-opacity", d => (d.matched ? vis.defaultPetalOpacity : 0.5))
+      // Use a dark grey stroke for unmatched (greyed) petals so outline matches fill
+      .attr("stroke", d => (d.matched ? vis.getBorderColor(vis.dietType) : '#b9b9b9ff'));
+
+    // Ensure unmatched (grey) petals are rendered behind matched petals by sorting
+    // unmatched (matched=false) before matched (matched=true) in the DOM order.
+    try {
+      petals.sort((a, b) => (+a.matched) - (+b.matched));
+    } catch (e) {
+      // ignore if sort is not supported in this d3 build
+    }
+
+    // Event handlers — apply after sorting so raise() works predictably
+    petals
+      .on("mouseenter", (e, d) => {
+        // Highlight the selected petal
+        d3.select(e.currentTarget)
+          .attr("stroke-width", 2.5)
+          .attr("fill-opacity", 1)
+          .raise();
+
+        // Configure tooltip content and position
+        const html =
+          `<div class="h">${d.diet_type ?? "Diet type"}, Age group: ${d.AgeGroup}-${d.AgeGroup + 9}</div>
        <div class="kr"><span class="k">Avg Daily calories intake:</span> ${vis.fmtInt(d.avgCaloriesIntake)}</div>
        <div class="kr"><span class="k">AvgCalories burned:</span> ${vis.fmtInt(d.avgCaloriesBurned)}</div>
        <div class="kr"><span class="k">Avg Meals/day:</span> ${vis.fmt1(d.avgDietFreq)}</div>
        <div class="kr"><span class="k">Avg Water intake:</span> ${vis.fmt1(d.avgWater)} L</div>
        <div class="kr"><span class="k">Avg Workout freq:</span> ${vis.fmt1(d.avgWorkoutFreq)} d/wk</div>`;
 
-          this.tooltip.html(html).style("opacity", 1);
-        })
-        .on("mousemove", (event) => {
-          this.tooltip
-              .style("left", (event.pageX) + "px")
-              .style("top",  (event.pageY) + "px");
-        })
-        .on("mouseleave", (event) => {
-          d3.select(event.currentTarget)
-              .attr("stroke-width", 1)
-              .attr("fill-opacity", d => this.shading(d.avgWater));
-          this.tooltip.style("opacity", 0);
-        })
-        .append("title")
-        .text(d => `Diet: ${vis.dietType}
-Calories: ${this.fmtInt(d.avgCaloriesBurned)}`);
+        this.tooltip.html(html).style("opacity", 1);
+      })
+      .on("mousemove", (event) => {
+        this.tooltip
+          .style("left", (event.pageX) + "px")
+          .style("top", (event.pageY) + "px");
+      })
+      .on("mouseleave", (event) => {
+        d3.select(event.currentTarget)
+          .attr("stroke-width", 1)
+          .attr("fill-opacity", d => (d.matched ? vis.defaultPetalOpacity : 0.5));
+        this.tooltip.style("opacity", 0);
+      });
+
+    // Add title children for accessibility/hover fallback
+    petals.append("title").text(d => `Diet: ${vis.dietType}\nCalories: ${this.fmtInt(d.avgCaloriesBurned)}`);
   }
 
   // Helper function to draw the center of the flower
@@ -331,7 +388,8 @@ Calories: ${this.fmtInt(d.avgCaloriesBurned)}`);
 
   // Helper to get petal width
   getPetalWidth(d) {
-    return this.petalWidth(d.avgDietFreq);
+    // Petal width encoding removed — return constant width
+    return this.defaultPetalWidth;
   }
 }
 
