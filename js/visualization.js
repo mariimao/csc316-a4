@@ -220,10 +220,42 @@
       const plateOuterR = Math.round(r + strokeW + Math.max(12, r * 0.22));
       const plateInnerR = Math.round(r + Math.max(6, r * 0.08));
 
-  // outer plate ring
-  g.append('circle').attr('class', 'plate-outer').attr('cx', cx).attr('cy', cy).attr('r', plateOuterR);
-  // inner plate (slightly lighter)
-  g.append('circle').attr('class', 'plate-inner').attr('cx', cx).attr('cy', cy).attr('r', plateInnerR);
+  // subtle solid drop shadow (offset) behind the plate for depth — color/style in CSS
+  g.append('circle')
+    .attr('class', 'plate-shadow')
+    .attr('cx', cx + Math.round(r * -0.08))
+    .attr('cy', cy + Math.round(r * 0.06))
+    .attr('r', plateOuterR);
+
+  // outer plate ring (main background)
+  g.append('circle')
+    .attr('class', 'plate-outer')
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', plateOuterR);
+
+  // inner plate (white center)
+  g.append('circle')
+    .attr('class', 'plate-inner')
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', plateInnerR);
+
+  // decorative concentric rim lines (two thin rings inside the outer rim)
+  const rim1R = Math.round(plateInnerR - Math.max(6, r * 0.03));
+  const rim2R = Math.round(plateInnerR - Math.max(12, r * 0.06));
+  g.append('circle')
+    .attr('class', 'plate-rim plate-rim-1')
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', rim1R)
+    .attr('fill', 'none');
+  g.append('circle')
+    .attr('class', 'plate-rim plate-rim-2')
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', rim2R)
+    .attr('fill', 'none');
 
       // create a full-circle path (two half-arcs) so we can attach textPath (category stroke sits on plate)
       const pathD = `M ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy}`;
@@ -231,7 +263,7 @@
         .attr('id', `cat-path-${i}`)
         .attr('d', pathD)
         .attr('fill', 'none')
-        .attr('stroke', 'black')
+        .attr('stroke', 'rgba(0, 0, 0, 0.06)')
         .attr('stroke-width', strokeW)
         .attr('opacity', 1);
 
@@ -252,7 +284,7 @@
         .style('font-size', `${textSizePx}px`)
         .append('textPath')
         .attr('href', `#cat-text-path-${i}`)
-        .attr('startOffset', '60%')
+        .attr('startOffset', '70%')
         .text(`${d.key}`)
         .style('fill', '#000');
 
@@ -542,8 +574,15 @@
     const container = d3.select('#controls');
     if (container.empty()) return;
     container.html('');
-    // Title above the filtering options
-    container.append('h3').attr('class', 'controls-title').text('Find me a meal with...');
+    // Header with stronger storytelling and visual hierarchy
+    const header = container.append('div').attr('class', 'controls-header');
+    header.append('h2').attr('class', 'controls-title').text('Meals for Your Workout Routine');
+    header.append('p').attr('class', 'controls-subtitle')
+      .text('Ever wondered what your workout habits say about your meal choices? Explore how each workout routine looks like on a plate.');
+    // Source link for the dataset (shown under the subtitle)
+    header.append('p')
+      .attr('class', 'controls-source')
+      .html('Source: <a href="https://www.kaggle.com/datasets/jockeroika/life-style-data/" target="_blank" rel="noopener noreferrer">Kaggle — Life Style Data</a>');
     const raw = svgApi.raw || [];
 
     // --- meal_type radio buttons ---

@@ -53,13 +53,14 @@ class Flower {
       const mapped = filtered.map(r => ({
         Workout_Type: r.Workout_Type || vis.workoutType,
         diet_type: r.diet_type || vis.dietType,
+        // keep meal identifiers for tooltip when available
+        meal_name: r.meal_name || r['meal_name'] || r.Name || r['Meal'] || undefined,
+        meal_type: r.meal_type || undefined,
         AgeGroup: Number(r.Age) || 0,
         avgCaloriesIntake: Number(r.Calories) || Number(r['Calories']) || 0,
         avgCaloriesBurned: Number(r.Calories_Burned) || 0,
         avgDietFreq: Number(r['Daily meals frequency']) || 1,
-        avgWater: Number(r['Water_Intake (liters)']) || 0,
-        avgWorkoutFreq: Number(r['Workout_Frequency (days/week)']) || 0,
-        avgBMI: Number(r.BMI) || 0,
+  avgWorkoutFreq: Number(r['Workout_Frequency (days/week)']) || 0,
         count: 1,
         // propagate matched flag (default true)
         matched: (typeof r.__matched !== 'undefined') ? !!r.__matched : true
@@ -68,7 +69,7 @@ class Flower {
       return;
     }
 
-    // Default/aggregated mode: rollup by Workout_Type -> diet_type -> AgeGroup
+    // Default/aggregated mode: rollup by Workout_Type -> diet_type (no age grouping)
     const workoutMap = vis.data.data.get(vis.workoutType);
     const dietMap = workoutMap ? workoutMap.get(vis.dietType) : undefined;
     if (!dietMap) {
@@ -76,14 +77,25 @@ class Flower {
       vis.displayData = [];
       return;
     }
-      
-    const subset = Array.from(dietMap, ([ageGroup, stats]) => ({
-      Workout_Type: vis.workoutType,
-      diet_type: vis.dietType,
-      AgeGroup: ageGroup,
-      ...stats      // avgWater, avgCaloriesIntake, ...
-    }));
-      
+    // If the rollup still contains an inner Map (older structure), preserve age groups;
+    // otherwise dietMap is a stats object for the workout+diet combination.
+    let subset;
+    if (dietMap instanceof Map) {
+      subset = Array.from(dietMap, ([ageGroup, stats]) => ({
+        Workout_Type: vis.workoutType,
+        diet_type: vis.dietType,
+        AgeGroup: ageGroup,
+        ...stats      // aggregated stats (avgCaloriesIntake, ...)
+      }));
+    } else {
+      subset = [{
+        Workout_Type: vis.workoutType,
+        diet_type: vis.dietType,
+        AgeGroup: 'All',
+        ...dietMap
+      }];
+    }
+
     vis.displayData = subset;
 
       console.log("Flattened data by workout type and diet type:");
@@ -126,9 +138,8 @@ class Flower {
         .style('pointer-events', 'none');
     }
 
-    // Scales and axes
-    vis.petalWidth = d3.scaleLinear()
-        .range(vis.petalDisplayWidthRange);
+  // Scales and axes
+  // Petal width is constant; width handled via getPetalWidth()/defaultPetalWidth
 
     vis.petalLength = d3.scaleLinear()
         .range([vis.minOuterR, vis.maxOuterR]);
@@ -171,14 +182,10 @@ class Flower {
       let high = d3.quantile(vals, 0.85);
       vis.petalLength.domain([low, high]).clamp(true);
       
-      // 2. Petal width scale
-      vals = vis.displayData.map(d => d.avgDietFreq);
-      low = d3.quantile(vals, 0.15);
-      high = d3.quantile(vals, 0.85);
-      vis.petalWidth.domain([low, high]).clamp(true);
+      // 2. Petal width is constant (avgDietFreq encoding removed)
       
   // 3. Shading scale removed — petal opacity is constant now
-  // (previously encoded by avgWater)
+  // (petal opacity encoding removed)
       
       vis.drawFlowerPetals();
   }
@@ -252,20 +259,43 @@ class Flower {
           .raise();
 
         // Configure tooltip content and position
-        const html =
-          `<div class="h">${d.diet_type ?? "Diet type"}, Age group: ${d.AgeGroup}-${d.AgeGroup + 9}</div>
-       <div class="kr"><span class="k">Avg Daily calories intake:</span> ${vis.fmtInt(d.avgCaloriesIntake)}</div>
-       <div class="kr"><span class="k">AvgCalories burned:</span> ${vis.fmtInt(d.avgCaloriesBurned)}</div>
-       <div class="kr"><span class="k">Avg Meals/day:</span> ${vis.fmt1(d.avgDietFreq)}</div>
-       <div class="kr"><span class="k">Avg Water intake:</span> ${vis.fmt1(d.avgWater)} L</div>
-       <div class="kr"><span class="k">Avg Workout freq:</span> ${vis.fmt1(d.avgWorkoutFreq)} d/wk</div>`;
+        // Prefer showing only the meal name in the tooltip header (remove meal_type/diet_type)
+        const header = d.meal_name ? `${d.meal_name}` : '';
+        // Build tooltip HTML and include optional fields when available. Omit empty header.
+        let html = '';
+        if (header) html += `<div class="h">${header}</div>`;
+        html += `<div class="kr"><span class="k">Calories</span> ${vis.fmtInt(d.avgCaloriesIntake)} kcal</div>
+          <div class="kr"><span class="k">Average workouts per week</span> ${vis.fmt1(d.avgWorkoutFreq)} per week</div>`;
+
+        if (d.serving_size || d.servingSize) {
+          const s = d.serving_size || d.servingSize;
+          html += `<div class="kr"><span class="k">Serving size</span> ${s}</div>`;
+        }
+        if (d.prep_time || d.prepTime) {
+          const p = d.prep_time || d.prepTime;
+          html += `<div class="kr"><span class="k">Prep time</span> ${p}</div>`;
+        }
+        if (typeof d.rating !== 'undefined') {
+          html += `<div class="kr"><span class="k">Rating</span> ${d.rating}</div>`;
+        }
 
         this.tooltip.html(html).style("opacity", 1);
       })
       .on("mousemove", (event) => {
+        // Clamp tooltip position to viewport so it doesn't run off-screen
+        const node = this.tooltip.node();
+        const TW = node ? node.offsetWidth : 280;
+        const TH = node ? node.offsetHeight : 120;
+        const M = 8; // margin
+        let left = event.pageX;
+        let top = event.pageY;
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        if (left + TW + M > winW) left = Math.max(M, winW - TW - M);
+        if (top + TH + M > winH) top = Math.max(M, winH - TH - M);
         this.tooltip
-          .style("left", (event.pageX) + "px")
-          .style("top", (event.pageY) + "px");
+          .style("left", (left) + "px")
+          .style("top", (top) + "px");
       })
       .on("mouseleave", (event) => {
         d3.select(event.currentTarget)
@@ -274,8 +304,10 @@ class Flower {
         this.tooltip.style("opacity", 0);
       });
 
-    // Add title children for accessibility/hover fallback
-    petals.append("title").text(d => `Diet: ${vis.dietType}\nCalories: ${this.fmtInt(d.avgCaloriesBurned)}`);
+  // Add description children for accessibility (use <desc> instead of <title>
+  // to avoid the browser-native tooltip while keeping content available to
+  // assistive technologies).
+  petals.append("desc").text(d => `${d.meal_name ? d.meal_name + ' · ' : ''}Diet: ${d.diet_type || vis.dietType}; Calories: ${this.fmtInt(d.avgCaloriesIntake)} kcal`);
   }
 
   // Helper function to draw the center of the flower

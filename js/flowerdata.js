@@ -10,19 +10,18 @@ class FlowerData {
         } else {
             // Process grouping by Workout_Type, diet_type, and Age group (rounded to nearest 10)
             // outside of the flower visualization class for reusability
+            // Rollup by Workout_Type -> diet_type (do not group by age)
             this.data = d3.rollup(data,
                 v => ({
-                    avgWater: d3.mean(v, d => d["Water_Intake (liters)"]),
+                    // Keep only aggregations the visualization currently uses.
                     avgCaloriesIntake: d3.mean(v, d => d["Calories"]),
                     avgCaloriesBurned: d3.mean(v, d => d["Calories_Burned"]),
-                    avgWorkoutFreq: d3.mean(v, d => d["Workout_Frequency (days/week)"]),
-                    avgBMI: d3.mean(v, d => d["BMI"]),
+                    avgWorkoutFreq: d3.mean(v, d => d["Workout_Frequency (days/week)" ]),
                     avgDietFreq : d3.mean(v, d => d["Daily meals frequency"]),
                     count: v.length
                 }),
                 d => d["Workout_Type"],
-                d => d["diet_type"],
-                d => Math.round(d["Age"] / 10) * 10
+                d => d["diet_type"]
             );
         }
         

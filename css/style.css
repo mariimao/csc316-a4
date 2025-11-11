@@ -1,10 +1,14 @@
 /* Fullscreen layout for the visualization */
+@import url("https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;600;700&display=swap");
 html,
 body {
   height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
+  background: #f4efec;
+  /* Use Lexend as the global UI font */
+  font-family: "Lexend", Arial, Helvetica, sans-serif;
 }
 
 #viz {
@@ -13,7 +17,13 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: #ffffff;
+  background: #f4efec;
+  /* decorative leaves image in the bottom-right corner (assets/leaves.png) */
+  background-image: url("../assets/leaves.png");
+  background-repeat: no-repeat;
+  background-position: right bottom;
+  /* size the decorative image so it doesn't dominate the view */
+  background-size: 260px auto;
   overflow: hidden;
 }
 
@@ -24,6 +34,12 @@ body {
   height: 100%;
 }
 
+/* Ensure SVG text elements also use Lexend */
+#viz text,
+svg text {
+  font-family: "Lexend", Arial, Helvetica, sans-serif;
+}
+
 /* Simple styling for demo elements */
 .demo-circle {
   fill: steelblue;
@@ -31,7 +47,7 @@ body {
 }
 
 .demo-text {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Lexend", Arial, Helvetica, sans-serif;
   font-size: 20px;
   fill: #333;
 }
@@ -45,9 +61,29 @@ body {
   padding: 6px 8px;
   border-radius: 4px;
   font-size: 13px;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Lexend", Arial, Helvetica, sans-serif;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   z-index: 1000;
+}
+
+/* Tooltip header and layout improvements */
+.viz-tooltip {
+  max-width: 320px;
+  word-wrap: break-word;
+}
+.viz-tooltip .h {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.viz-tooltip .kr {
+  font-size: 13px;
+  line-height: 1.2;
+}
+.viz-tooltip .k {
+  color: #ddd;
+  margin-right: 6px;
+  font-weight: 600;
 }
 
 /* Ensure overlay widgets render above the main SVG and are not clipped */
@@ -75,29 +111,52 @@ body {
   position: fixed;
   left: 12px;
   top: 12px;
-  width: 260px;
+  width: 350px;
   max-height: calc(100vh - 24px);
   overflow: auto;
-  background: rgba(255, 255, 255, 0.96);
+  /* remove background and shadow to blend with page */
+  background: transparent;
   border-radius: 8px;
   padding: 10px 12px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
   z-index: 1100;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Lexend", Arial, Helvetica, sans-serif;
   font-size: 13px;
   color: #111;
 }
 
 /* Plate background visuals used behind each category */
 .plate-outer {
-  fill: #ececf2;
+  fill: #fbfbfb; /* slight off-white for outer ring */
 }
 .plate-inner {
-  fill: #f7f7f9;
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.06));
+  fill: #ffffff; /* bright plate center */
+  /* subtle inner shadow via box-shadow-like effect using filter on the svg group */
 }
 .plate-shadow {
-  fill: rgba(0, 0, 0, 0.04);
+  /* Solid drop shadow color requested by user */
+  fill: #d8d7b9;
+  opacity: 1;
+}
+
+/* Decorative rim lines inside the plate */
+.plate-rim-1 {
+  stroke: #9aa43a; /* olive green */
+  stroke-width: 3px;
+  stroke-linecap: round;
+  opacity: 0.95;
+}
+.plate-rim-2 {
+  stroke: #d7e3a6; /* light desaturated green */
+  stroke-width: 2px;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+/* Ensure the shadow sits beneath the plate visually */
+.plate-shadow {
+  /* No blur — solid circle behind plate to create a simple offset 'drop' */
+  filter: none;
 }
 
 .controls-panel h3 {
@@ -155,26 +214,30 @@ body {
 /* Make controls collapse on small viewports */
 @media (max-width: 600px) {
   .controls-panel {
-    width: 200px;
+    width: 300px;
     left: 8px;
     top: 8px;
     padding: 8px;
   }
 }
 
-/* Legend panel placed in the bottom-right corner */
+/* Legend panel placed in the bottom-left corner */
 .legend-panel {
   position: fixed;
-  right: 12px;
+  left: 12px;
   bottom: 12px;
   width: 220px;
   max-width: calc(40vw);
   background: rgba(255, 255, 255, 0.96);
-  border-radius: 8px;
+  /* stronger rounding */
+  border-radius: 14px;
   padding: 10px 12px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  /* orange border with an external white ring to visually separate it from the page */
+  border: 2px solid #e38c45;
+  /* solid white ring outside the orange border */
+  box-shadow: 0 0 0 6px #ffffff;
   z-index: 1100;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Lexend", Arial, Helvetica, sans-serif;
   font-size: 13px;
   color: #111;
 }
@@ -200,6 +263,37 @@ body {
 .legend-item .label {
   font-size: 12px;
   color: #222;
+}
+
+/* Controls header: stronger visual hierarchy */
+.controls-header {
+  margin-bottom: 8px;
+}
+.controls-header .controls-title {
+  font-size: 30px;
+  margin: 0 0 6px 0;
+  font-weight: 700;
+}
+.controls-header .controls-subtitle {
+  margin: 0 0 20px 0;
+  font-size: 18px;
+  color: #555;
+  line-height: 1.3;
+}
+
+/* Source line shown under the subtitle in the controls panel */
+.controls-header .controls-source {
+  margin: 6px 0 12px 0;
+  font-size: 12px;
+  color: #666;
+}
+.controls-header .controls-source a {
+  color: #2b8a3e; /* reuse the active pill green for a subtle accent */
+  text-decoration: none;
+  font-weight: 600;
+}
+.controls-header .controls-source a:hover {
+  text-decoration: underline;
 }
 
 .legend-size {
