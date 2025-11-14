@@ -147,7 +147,7 @@ svg text {
   opacity: 0.95;
 }
 .plate-rim-2 {
-  stroke: #d7e3a6; /* light desaturated green */
+  stroke: #d7e3a600; /* light desaturated green */
   stroke-width: 2px;
   stroke-linecap: round;
   opacity: 0.9;
@@ -182,7 +182,8 @@ svg text {
 }
 .pill {
   appearance: none;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  /* green outline for pills to match brand accent */
+  border: 1px solid #2b8a3e;
   background: #fff;
   padding: 6px 10px;
   border-radius: 999px;
@@ -196,7 +197,14 @@ svg text {
 .pill.active {
   background: #2b8a3e;
   color: #fff;
-  border-color: rgba(0, 0, 0, 0.12);
+  border-color: #276e31;
+}
+
+/* Accessibility: visible focus ring for keyboard users */
+.pill:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(43, 138, 62, 0.18);
+  border-color: #2b8a3e;
 }
 
 .control-label {

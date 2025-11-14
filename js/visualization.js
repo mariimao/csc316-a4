@@ -217,14 +217,14 @@
 
   // Plate background: outer + inner circles to create plate look
       const strokeW = Math.max(1, Math.min(6, Math.round(r / 24)));
-      const plateOuterR = Math.round(r + strokeW + Math.max(12, r * 0.22));
-      const plateInnerR = Math.round(r + Math.max(6, r * 0.08));
+      const plateOuterR = Math.round(r + strokeW + 30);
+      const plateInnerR = Math.round(r);
 
   // subtle solid drop shadow (offset) behind the plate for depth — color/style in CSS
   g.append('circle')
     .attr('class', 'plate-shadow')
-    .attr('cx', cx + Math.round(r * -0.08))
-    .attr('cy', cy + Math.round(r * 0.06))
+    .attr('cx', cx + Math.round(r * -0.04))
+    .attr('cy', cy + Math.round(r * 0.04))
     .attr('r', plateOuterR);
 
   // outer plate ring (main background)
