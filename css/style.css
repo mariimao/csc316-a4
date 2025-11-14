@@ -19,12 +19,12 @@ body {
   bottom: 0;
   background: #f4efec;
   /* decorative leaves image in the bottom-right corner (assets/leaves.png) */
-  background-image: url("../assets/leaves.png");
-  background-repeat: no-repeat;
-  background-position: right bottom;
+  /* background-image: url("../assets/leaves.png"); */
+  /* background-repeat: no-repeat; */
+  /* background-position: right bottom; */
   /* size the decorative image so it doesn't dominate the view */
-  background-size: 260px auto;
-  overflow: hidden;
+  /* background-size: 260px auto; */
+  /* overflow: hidden; */
 }
 
 /* Make any svg inside #viz fill the container */
