@@ -324,13 +324,15 @@
       const minNode = Math.max(6, Math.round(r * 0.06));
       const maxNode = Math.max(minNode + 4, Math.round(r * 0.22));
 
-      // size by count (or caloriesSum if you prefer)
-      const countExtent = d3.extent(dietEntries, e => e.count);
-      const sizeScale = d3.scaleSqrt().domain(countExtent).range([minNode, maxNode]);
+      // Instead of sizing nodes by count, use a fixed, responsive container size so
+      // all mini-flowers render at the same visual scale. This keeps flowers consistent
+      // across categories regardless of counts.
+      const fixedContainerSize = Math.max(64, Math.round(minDim * 0.12));
+      const fixedNodeR = Math.max(8, Math.round(fixedContainerSize / 3));
 
-      // create nodes for simulation from diet groups
+      // create nodes for simulation from diet groups (all nodes use fixedNodeR)
       const nodes = dietEntries.map((g, idx) => {
-        const ndR = Math.round(sizeScale(g.count));
+        const ndR = fixedNodeR;
         return {
           id: `${i}-diet-${idx}`,
           diet: g.diet,
@@ -362,8 +364,8 @@
             .style('position', 'absolute')
             .style('pointer-events', 'auto')
             .each(function (nd) {
-              // size the container conservatively around the node radius
-              const sizePx = Math.max(48, nd.r * 3); // smaller base and multiplier to reduce petals
+              // use the fixed container size for all mini-flowers
+              const sizePx = fixedContainerSize;
               nd.containerSize = sizePx; // store on node for collision and clamping
               d3.select(this).style('width', sizePx + 'px').style('height', sizePx + 'px');
               // unique id used by Flower constructor (no #)
@@ -381,8 +383,8 @@
                 widget.centerR = Math.max(4, Math.round(sizePx * 0.08));
                 widget.minOuterR = Math.max(8, Math.round(sizePx * 0.22));
                 widget.maxOuterR = Math.max(widget.minOuterR + 6, Math.round(sizePx * 0.45));
-                // petal width range relative to container
-                widget.petalDisplayWidthRange = [Math.max(6, Math.round(sizePx * 0.12)), Math.max(10, Math.round(sizePx * 0.22))];
+                // petal width range relative to container (reduced multipliers for thinner petals)
+                widget.petalDisplayWidthRange = [Math.max(5, Math.round(sizePx * 0.08)), Math.max(8, Math.round(sizePx * 0.16))];
                 // keep shading/opactiy defaults but ensure reasonable range
                 widget.opacityDisplayRange = [0.45, 0.9];
 
@@ -397,7 +399,7 @@
               }
             }),
           update => update.each(function (nd) {
-            const sizePx = Math.max(48, nd.r * 3);
+            const sizePx = fixedContainerSize;
             nd.containerSize = sizePx;
             d3.select(this).style('width', sizePx + 'px').style('height', sizePx + 'px');
           }),

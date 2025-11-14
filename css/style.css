@@ -285,11 +285,14 @@ svg text {
 .controls-header .controls-subtitle {
   margin: 0 0 20px 0;
   font-size: 18px;
-  color: #555;
-  line-height: 1.3;
-}
-
-/* Source line shown under the subtitle in the controls panel */
+  .legend-panel .legend-note {
+    /* style this note like the legend's h4 heading for visual parity */
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: inherit;
+    line-height: 1.15;
+  }
 .controls-header .controls-source {
   margin: 6px 0 12px 0;
   font-size: 12px;
