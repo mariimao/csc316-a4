@@ -1,6 +1,7 @@
 
 let flower;
 let ageGenderHeatmap;
+let scatter;
 
 loadData();
 
@@ -16,6 +17,9 @@ function loadData() {
         // flower.initVis();
         ageGenderHeatmap = new AgeGenderHeatmap("age-gender-heatmap", prepared);
         ageGenderHeatmap.initVis();
+        
+        scatter = new ExerciseScatter("scatter", prepared);
+        scatter.initVis();
     })
 }
 
@@ -31,4 +35,9 @@ function prepareLifestyleData(data) {
         }
         return newRow;
     });
+}
+
+function cellSelected(gender, age, cellColor) {
+    // Invoke change on scatter plot
+    scatter.updateFilter(gender, age, cellColor);
 }

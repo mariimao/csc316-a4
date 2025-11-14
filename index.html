@@ -15,14 +15,15 @@
 <body>
 
 <div class="container-fluid">
-<!--    &lt;!&ndash; flower plot &ndash;&gt;-->
-<!--    <div class="row justify-content-center" style="height: max(100vh, 800px)">-->
-<!--        <div class="align-self-center" id="flower" style="height: 100%; width: 100%"></div>-->
-<!--    </div>-->
-    <!-- Heatmap-->
-    <div class="row justify-content-center" style="height: max(100vh, 800px)">
-        <div class="align-self-center" id="age-gender-heatmap" style="height: 100%; width: 100%"></div>
+    <div class="row">
+        <div class="col-4 justify-content-center" style="height: max(100vh, 800px)">
+            <div class="align-self-center" id="age-gender-heatmap" style="height: 100%; width: 100%"></div>
+        </div>
+        <div class="col-8 justify-content-center" style="height: max(100vh, 800px)">
+            <div class="align-self-center" id="scatter" style="height: 100%; width: 100%"></div>
+        </div>
     </div>
+    <br/>
 </div>
 
 <!-- d3 -->
@@ -30,6 +31,7 @@
 
 <!-- Visualization objects -->
 <script src="js/age-gender-heatmap.js"></script>
+<script src="js/exercise-scatter.js"></script>
 
 <!-- Load data, create visualizations -->
 <script src="js/main.js"></script>
